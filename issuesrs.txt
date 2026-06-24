@@ -1,0 +1,379 @@
+Project Title: Issue Tracking System (Mini Jira)
+Version 1.0
+1. Introduction
+1.1 Purpose
+
+The purpose of this project is to develop a web-based Issue Tracking System that helps organizations manage projects, track issues, assign tasks, and monitor progress efficiently. The system enables administrators, managers, and employees to collaborate through a centralized platform.
+
+1.2 Scope
+
+The Issue Tracking System allows users to:
+
+Create and manage projects
+Create, assign, and track issues/tickets
+Monitor task status
+Set priorities and deadlines
+Add comments and updates
+Generate reports
+Maintain activity logs
+
+The system will provide role-based access control for Admins, Managers, and Employees.
+
+1.3 Objectives
+Improve project tracking
+Simplify issue management
+Enhance team collaboration
+Maintain issue history and accountability
+Provide project progress visibility
+2. Overall Description
+2.1 Product Perspective
+
+The system is a standalone web application that stores all project and issue information in a MySQL database.
+
+Technology Stack
+
+Frontend
+
+React.js
+Bootstrap/CSS
+
+Backend
+
+Flask (Python)
+
+Database
+
+MySQL
+2.2 User Classes
+Admin
+Manage users
+Create projects
+Assign managers
+View all reports
+Manage system settings
+Manager
+Create issues
+Assign issues to employees
+Change issue status
+View project reports
+Employee
+View assigned issues
+Update issue status
+Add comments
+Track personal tasks
+3. Functional Requirements
+3.1 User Authentication Module
+Description
+
+Users can securely log in to the system.
+
+Inputs
+Username
+Password
+Outputs
+Successful Login
+Error Message
+Requirements
+
+FR-1:
+The system shall allow users to log in using valid credentials.
+
+FR-2:
+The system shall restrict unauthorized access.
+
+FR-3:
+The system shall allow users to log out.
+
+3.2 User Management Module
+Description
+
+Admin manages system users.
+
+Requirements
+
+FR-4:
+Admin shall create new users.
+
+FR-5:
+Admin shall edit user details.
+
+FR-6:
+Admin shall deactivate users.
+
+FR-7:
+Admin shall assign roles.
+
+3.3 Project Management Module
+Description
+
+Projects can be created and managed.
+
+Requirements
+
+FR-8:
+Admin shall create projects.
+
+FR-9:
+Admin shall update project information.
+
+FR-10:
+Admin shall archive completed projects.
+
+FR-11:
+Users shall view assigned projects.
+
+3.4 Issue Management Module
+Description
+
+Core module for issue tracking.
+
+Requirements
+
+FR-12:
+Managers shall create issues.
+
+FR-13:
+Each issue shall contain:
+
+Issue ID
+Title
+Description
+Priority
+Status
+Assigned User
+Due Date
+
+FR-14:
+Managers shall assign issues to employees.
+
+FR-15:
+Managers shall modify issue details.
+
+FR-16:
+Employees shall view assigned issues.
+
+FR-17:
+Employees shall update issue status.
+
+3.5 Issue Status Workflow
+Status Types
+Open
+In Progress
+Testing
+Resolved
+Closed
+Requirements
+
+FR-18:
+The system shall support status transitions.
+
+FR-19:
+The system shall store status history.
+
+3.6 Priority Management
+Priority Levels
+Low
+Medium
+High
+Critical
+Requirements
+
+FR-20:
+Managers shall set issue priority.
+
+FR-21:
+Users shall filter issues by priority.
+
+3.7 Comment System
+Description
+
+Users can communicate within issues.
+
+Requirements
+
+FR-22:
+Users shall add comments.
+
+FR-23:
+Users shall edit their comments.
+
+FR-24:
+Comments shall be displayed chronologically.
+
+3.8 Activity Log Module
+Description
+
+The system records user activities.
+
+Requirements
+
+FR-25:
+The system shall log:
+
+Issue creation
+Assignment
+Status changes
+Comment additions
+
+FR-26:
+Admins and Managers shall view activity history.
+
+3.9 Dashboard Module
+Description
+
+Provides project overview.
+
+Requirements
+
+FR-27:
+Display total issues.
+
+FR-28:
+Display open issues.
+
+FR-29:
+Display resolved issues.
+
+FR-30:
+Display overdue issues.
+
+FR-31:
+Display project progress.
+
+3.10 Reporting Module
+Description
+
+Generate reports for project monitoring.
+
+Requirements
+
+FR-32:
+Generate issue reports.
+
+FR-33:
+Generate employee performance reports.
+
+FR-34:
+Generate project completion reports.
+
+FR-35:
+Export reports as PDF.
+
+4. Non-Functional Requirements
+Performance
+
+NFR-1:
+System response time shall be less than 3 seconds.
+
+NFR-2:
+Support at least 100 concurrent users.
+
+Security
+
+NFR-3:
+Passwords shall be encrypted.
+
+NFR-4:
+Role-based authorization shall be implemented.
+
+NFR-5:
+Sessions shall expire after inactivity.
+
+Reliability
+
+NFR-6:
+System uptime shall be 99%.
+
+NFR-7:
+Database backup shall be maintained.
+
+Usability
+
+NFR-8:
+User-friendly interface.
+
+NFR-9:
+Responsive design for mobile and desktop.
+
+Maintainability
+
+NFR-10:
+Modular architecture shall be used.
+
+NFR-11:
+Database shall follow normalization rules.
+
+5. Database Design
+Users
+Field	Type
+user_id	INT (PK)
+name	VARCHAR
+email	VARCHAR
+password	VARCHAR
+role	VARCHAR
+Projects
+Field	Type
+project_id	INT (PK)
+project_name	VARCHAR
+description	TEXT
+start_date	DATE
+end_date	DATE
+Issues
+Field	Type
+issue_id	INT (PK)
+project_id	INT (FK)
+assigned_to	INT (FK)
+title	VARCHAR
+description	TEXT
+priority	VARCHAR
+status	VARCHAR
+due_date	DATE
+Comments
+Field	Type
+comment_id	INT (PK)
+issue_id	INT (FK)
+user_id	INT (FK)
+comment_text	TEXT
+created_at	DATETIME
+Activity Logs
+Field	Type
+log_id	INT (PK)
+user_id	INT (FK)
+action	VARCHAR
+timestamp	DATETIME
+6. Use Case Diagram
+                    +-----------+
+                    |   Admin   |
+                    +-----------+
+                          |
+    -----------------------------------------
+    |                |             |         |
+Manage Users   Create Projects   Reports  Logs
+
+                          |
+                    +-----------+
+                    |  Manager  |
+                    +-----------+
+                          |
+    -----------------------------------------
+    |                |             |
+Create Issue    Assign Issue   View Reports
+
+                          |
+                    +-----------+
+                    | Employee  |
+                    +-----------+
+                          |
+    -----------------------------------------
+    |                |             |
+ View Issues   Update Status   Comment
+7. Future Enhancements
+Email Notifications
+File Attachments
+Dark Mode
+Team Chat
+Gantt Chart
+Calendar View
+Mobile Application
+Project Kanban Board
+Real-time Notifications
