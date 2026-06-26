@@ -1,4 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
+import LoginPage from './pages/LoginPage'
 import './index.css'
 
 /* ---- Placeholder Pages (will be replaced module by module) ---- */
@@ -41,7 +44,15 @@ function Reports() {
 
 /* ---- Sidebar Component ---- */
 import { useLocation, Link } from 'react-router-dom'
-import { HiOutlineViewGrid, HiOutlineFolder, HiOutlineTicket, HiOutlineUsers, HiOutlineClock, HiOutlineDocumentReport } from 'react-icons/hi'
+import {
+  HiOutlineViewGrid,
+  HiOutlineFolder,
+  HiOutlineTicket,
+  HiOutlineUsers,
+  HiOutlineClock,
+  HiOutlineDocumentReport,
+  HiOutlineLogout,
+} from 'react-icons/hi'
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: HiOutlineViewGrid },
@@ -54,6 +65,11 @@ const navItems = [
 
 function Sidebar() {
   const location = useLocation()
+  const { user, logout } = useAuth()
+
+  const handleLogout = async () => {
+    await logout()
+  }
 
   return (
     <aside className="sidebar">
@@ -85,12 +101,19 @@ function Sidebar() {
 
       <div className="sidebar-footer">
         <div className="sidebar-user-info">
-          <div className="sidebar-avatar">A</div>
+          <div className="sidebar-avatar">
+            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+          </div>
           <div>
-            <p className="sidebar-user-name">Admin</p>
-            <p className="sidebar-user-role">System Admin</p>
+            <p className="sidebar-user-name">{user?.name || 'User'}</p>
+            <p className="sidebar-user-role">
+              {user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Unknown'}
+            </p>
           </div>
         </div>
+        <button className="sidebar-logout-btn" onClick={handleLogout} title="Sign out">
+          <HiOutlineLogout />
+        </button>
       </div>
     </aside>
   )
@@ -98,6 +121,8 @@ function Sidebar() {
 
 /* ---- Header Component ---- */
 function Header() {
+  const { user } = useAuth()
+
   return (
     <header className="app-header">
       <div className="header-search">
@@ -109,33 +134,52 @@ function Header() {
         />
       </div>
       <div className="header-actions">
-        <span className="badge badge-emerald">v1.0</span>
+        <span className="badge badge-emerald">{user?.role || 'v1.0'}</span>
       </div>
     </header>
   )
 }
 
-/* ---- App Shell ---- */
+/* ---- App Shell (protected layout wrapper) ---- */
+function AppLayout() {
+  return (
+    <div className="app-layout">
+      <Sidebar />
+      <div className="main-area">
+        <Header />
+        <main className="main-content">
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/issues" element={<Issues />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/activity" element={<ActivityLogs />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+/* ---- Main App ---- */
 function App() {
   return (
     <Router>
-      <div className="app-layout">
-        <Sidebar />
-        <div className="main-area">
-          <Header />
-          <main className="main-content">
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/projects" element={<Projects />} />
-              <Route path="/issues" element={<Issues />} />
-              <Route path="/users" element={<Users />} />
-              <Route path="/activity" element={<ActivityLogs />} />
-              <Route path="/reports" element={<Reports />} />
-            </Routes>
-          </main>
-        </div>
-      </div>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </AuthProvider>
     </Router>
   )
 }

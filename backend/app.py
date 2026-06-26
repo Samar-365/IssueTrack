@@ -17,7 +17,11 @@ def create_app(config_name=None):
     # Initialize extensions
     db.init_app(app)
     CORS(app, resources={r"/api/*": {"origins": "*"}})
-    JWTManager(app)
+    jwt = JWTManager(app)
+
+    # ---- JWT token revocation check (for logout) ----
+    from routes.auth import check_if_token_revoked
+    jwt.token_in_blocklist_loader(check_if_token_revoked)
 
     # Create database tables
     with app.app_context():
@@ -29,8 +33,10 @@ def create_app(config_name=None):
         from models.activity_log import ActivityLog
         db.create_all()
 
-    # Register blueprints (routes) — will be added module by module
-    # from routes.auth import auth_bp
+    # Register blueprints (routes) — added module by module
+    from routes.auth import auth_bp
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+
     # from routes.users import users_bp
     # from routes.projects import projects_bp
     # from routes.issues import issues_bp
@@ -39,7 +45,6 @@ def create_app(config_name=None):
     # from routes.dashboard import dashboard_bp
     # from routes.reports import reports_bp
 
-    # app.register_blueprint(auth_bp, url_prefix='/api/auth')
     # app.register_blueprint(users_bp, url_prefix='/api/users')
     # app.register_blueprint(projects_bp, url_prefix='/api/projects')
     # app.register_blueprint(issues_bp, url_prefix='/api/issues')
