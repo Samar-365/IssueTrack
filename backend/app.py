@@ -37,7 +37,7 @@ def create_app(config_name=None):
     from routes.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
-    # from routes.users import users_bp
+    from routes.users import users_bp
     # from routes.projects import projects_bp
     # from routes.issues import issues_bp
     # from routes.comments import comments_bp
@@ -45,7 +45,7 @@ def create_app(config_name=None):
     # from routes.dashboard import dashboard_bp
     # from routes.reports import reports_bp
 
-    # app.register_blueprint(users_bp, url_prefix='/api/users')
+    app.register_blueprint(users_bp, url_prefix='/api/users')
     # app.register_blueprint(projects_bp, url_prefix='/api/projects')
     # app.register_blueprint(issues_bp, url_prefix='/api/issues')
     # app.register_blueprint(comments_bp, url_prefix='/api/comments')

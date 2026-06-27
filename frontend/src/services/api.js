@@ -48,4 +48,13 @@ export const authAPI = {
   me: () => api.get('/auth/me'),
 }
 
+// ---- User Management API helpers ----
+export const usersAPI = {
+  list:      (params)      => api.get('/users', { params }),
+  get:       (id)          => api.get(`/users/${id}`),
+  create:    (data)        => api.post('/users', data),
+  update:    (id, data)    => api.put(`/users/${id}`, data),
+  setStatus: (id, active)  => api.patch(`/users/${id}/status`, { is_active: active }),
+}
+
 export default api

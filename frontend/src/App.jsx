@@ -2,7 +2,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
+import UsersPage from './pages/UsersPage'
 import './index.css'
+import './App.css'
 
 /* ---- Placeholder Pages (will be replaced module by module) ---- */
 function PlaceholderPage({ title, subtitle }) {
@@ -32,9 +34,7 @@ function Projects() {
 function Issues() {
   return <PlaceholderPage title="Issues" subtitle="Track and manage issues" />
 }
-function Users() {
-  return <PlaceholderPage title="User Management" subtitle="Manage system users" />
-}
+/* Users page is now a real component — imported from pages/UsersPage */
 function ActivityLogs() {
   return <PlaceholderPage title="Activity Logs" subtitle="View system activity" />
 }
@@ -152,7 +152,7 @@ function AppLayout() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/issues" element={<Issues />} />
-            <Route path="/users" element={<Users />} />
+            <Route path="/users" element={<UsersPage />} />
             <Route path="/activity" element={<ActivityLogs />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
