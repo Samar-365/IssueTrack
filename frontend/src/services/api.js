@@ -57,4 +57,14 @@ export const usersAPI = {
   setStatus: (id, active)  => api.patch(`/users/${id}/status`, { is_active: active }),
 }
 
+// ---- Project Management API helpers ----
+export const projectsAPI = {
+  list:    (params)    => api.get('/projects', { params }),
+  get:     (id)        => api.get(`/projects/${id}`),
+  create:  (data)      => api.post('/projects', data),
+  update:  (id, data)  => api.put(`/projects/${id}`, data),
+  archive: (id)        => api.patch(`/projects/${id}/archive`),
+  members: (id)        => api.get(`/projects/${id}/members`),
+}
+
 export default api

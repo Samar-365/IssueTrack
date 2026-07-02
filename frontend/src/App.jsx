@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import UsersPage from './pages/UsersPage'
+import ProjectsPage from './pages/ProjectsPage'
 import './index.css'
 import './App.css'
 
@@ -28,9 +29,7 @@ function PlaceholderPage({ title, subtitle }) {
 function Dashboard() {
   return <PlaceholderPage title="Dashboard" subtitle="Overview of all projects and issues" />
 }
-function Projects() {
-  return <PlaceholderPage title="Projects" subtitle="Manage your projects" />
-}
+/* Projects page is now a real component — imported from pages/ProjectsPage */
 function Issues() {
   return <PlaceholderPage title="Issues" subtitle="Track and manage issues" />
 }
@@ -150,7 +149,7 @@ function AppLayout() {
         <main className="main-content">
           <Routes>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/projects" element={<Projects />} />
+            <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/issues" element={<Issues />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/activity" element={<ActivityLogs />} />
