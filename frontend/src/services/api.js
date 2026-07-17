@@ -67,4 +67,16 @@ export const projectsAPI = {
   members: (id)        => api.get(`/projects/${id}/members`),
 }
 
+// ---- Issue Management API helpers ----
+export const issuesAPI = {
+  list:         (params)       => api.get('/issues', { params }),
+  get:          (id)           => api.get(`/issues/${id}`),
+  create:       (data)         => api.post('/issues', data),
+  update:       (id, data)     => api.put(`/issues/${id}`, data),
+  updateStatus: (id, status)   => api.patch(`/issues/${id}/status`, { status }),
+  delete:       (id)           => api.delete(`/issues/${id}`),
+  assignees:    ()             => api.get('/issues/assignees'),
+  stats:        ()             => api.get('/issues/stats'),
+}
+
 export default api

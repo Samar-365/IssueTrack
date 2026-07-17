@@ -39,7 +39,7 @@ def create_app(config_name=None):
 
     from routes.users import users_bp
     from routes.projects import projects_bp
-    # from routes.issues import issues_bp
+    from routes.issues import issues_bp
     # from routes.comments import comments_bp
     # from routes.activity import activity_bp
     # from routes.dashboard import dashboard_bp
@@ -47,7 +47,7 @@ def create_app(config_name=None):
 
     app.register_blueprint(users_bp, url_prefix='/api/users')
     app.register_blueprint(projects_bp, url_prefix='/api/projects')
-    # app.register_blueprint(issues_bp, url_prefix='/api/issues')
+    app.register_blueprint(issues_bp, url_prefix='/api/issues')
     # app.register_blueprint(comments_bp, url_prefix='/api/comments')
     # app.register_blueprint(activity_bp, url_prefix='/api/activity')
     # app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')

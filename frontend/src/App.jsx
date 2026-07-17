@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import UsersPage from './pages/UsersPage'
+import IssuesPage from './pages/IssuesPage'
 import ProjectsPage from './pages/ProjectsPage'
 import './index.css'
 import './App.css'
@@ -30,9 +31,7 @@ function Dashboard() {
   return <PlaceholderPage title="Dashboard" subtitle="Overview of all projects and issues" />
 }
 /* Projects page is now a real component — imported from pages/ProjectsPage */
-function Issues() {
-  return <PlaceholderPage title="Issues" subtitle="Track and manage issues" />
-}
+/* Issues page is now a real component — imported from pages/IssuesPage */
 /* Users page is now a real component — imported from pages/UsersPage */
 function ActivityLogs() {
   return <PlaceholderPage title="Activity Logs" subtitle="View system activity" />
@@ -150,7 +149,7 @@ function AppLayout() {
           <Routes>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/issues" element={<Issues />} />
+            <Route path="/issues" element={<IssuesPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/activity" element={<ActivityLogs />} />
             <Route path="/reports" element={<Reports />} />
