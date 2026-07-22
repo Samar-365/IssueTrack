@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { HiOutlineMail, HiOutlineLockClosed, HiOutlineExclamationCircle } from 'react-icons/hi'
+import PixelIcon from '../components/PixelIcon'
 import './LoginPage.css'
 
 function LoginPage() {
@@ -49,7 +50,7 @@ function LoginPage() {
       <div className="login-container animate-fade-in">
         {/* Branding */}
         <div className="login-brand">
-          <div className="login-logo-icon">⚡</div>
+          <div className="login-logo-icon"><PixelIcon name="lightning" size={24} color="#ffffff" /></div>
           <h1 className="login-title">IssueTracker</h1>
           <p className="login-subtitle">Sign in to your workspace</p>
         </div>

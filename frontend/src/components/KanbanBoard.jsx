@@ -10,21 +10,22 @@ import {
   HiOutlineFolder,
   HiOutlineClock,
 } from 'react-icons/hi'
+import PixelIcon from './PixelIcon'
 import './KanbanBoard.css'
 
 const COLUMNS = [
-  { id: 'open', label: 'Open', color: '#3B82F6', icon: '🔵' },
-  { id: 'in_progress', label: 'In Progress', color: '#6366F1', icon: '⚡' },
-  { id: 'testing', label: 'Testing', color: '#F59E0B', icon: '🧪' },
-  { id: 'resolved', label: 'Resolved', color: '#10B981', icon: '✅' },
-  { id: 'closed', label: 'Closed', color: '#64748B', icon: '📦' },
+  { id: 'open', label: 'Open', color: '#18181b', iconName: 'circle' },
+  { id: 'in_progress', label: 'In Progress', color: '#3f3f46', iconName: 'lightning' },
+  { id: 'testing', label: 'Testing', color: '#52525b', iconName: 'flask' },
+  { id: 'resolved', label: 'Resolved', color: '#71717a', iconName: 'check' },
+  { id: 'closed', label: 'Closed', color: '#a1a1aa', iconName: 'lock' },
 ]
 
 const PRIORITY_MAP = {
-  low:      { label: 'Low',      class: 'priority-low',      dot: '🟢' },
-  medium:   { label: 'Medium',   class: 'priority-medium',   dot: '🔵' },
-  high:     { label: 'High',     class: 'priority-high',     dot: '🟠' },
-  critical: { label: 'Critical', class: 'priority-critical',  dot: '🔴' },
+  low:      { label: 'Low',      class: 'priority-low',      iconName: 'circle', color: '#71717a' },
+  medium:   { label: 'Medium',   class: 'priority-medium',   iconName: 'circle', color: '#52525b' },
+  high:     { label: 'High',     class: 'priority-high',     iconName: 'warning', color: '#27272a' },
+  critical: { label: 'Critical', class: 'priority-critical',  iconName: 'warning', color: '#000000' },
 }
 
 const VALID_TRANSITIONS = {
@@ -111,7 +112,7 @@ export default function KanbanBoard({
             {/* Column Header */}
             <div className="kanban-column-header">
               <div className="kanban-column-title">
-                <span className="kanban-column-icon">{col.icon}</span>
+                <span className="kanban-column-icon"><PixelIcon name={col.iconName} size={16} color={col.color} /></span>
                 <span>{col.label}</span>
               </div>
               <span className="kanban-column-count">{colIssues.length}</span>
@@ -141,7 +142,7 @@ export default function KanbanBoard({
                           {issue.project_name || `P#${issue.project_id}`}
                         </span>
                         <span className={`priority-badge ${pri.class}`}>
-                          {pri.dot} {pri.label}
+                          <PixelIcon name={pri.iconName} size={10} color={pri.color} /> {pri.label}
                         </span>
                       </div>
 

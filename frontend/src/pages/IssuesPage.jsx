@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import IssueFormModal from '../components/IssueFormModal'
 import CommentsPanel from '../components/CommentsPanel'
 import KanbanBoard from '../components/KanbanBoard'
+import PixelIcon from '../components/PixelIcon'
 import { useToast, ToastContainer } from '../components/Toast'
 import {
   HiOutlinePlus,
@@ -28,10 +29,10 @@ import './IssuesPage.css'
 
 /* ---- Helper maps ---- */
 const PRIORITY_MAP = {
-  low:      { label: 'Low',      class: 'priority-low',      dot: '🟢' },
-  medium:   { label: 'Medium',   class: 'priority-medium',   dot: '🔵' },
-  high:     { label: 'High',     class: 'priority-high',     dot: '🟠' },
-  critical: { label: 'Critical', class: 'priority-critical',  dot: '🔴' },
+  low:      { label: 'Low',      class: 'priority-low',      iconName: 'circle', color: '#71717a' },
+  medium:   { label: 'Medium',   class: 'priority-medium',   iconName: 'circle', color: '#52525b' },
+  high:     { label: 'High',     class: 'priority-high',     iconName: 'warning', color: '#27272a' },
+  critical: { label: 'Critical', class: 'priority-critical',  iconName: 'warning', color: '#000000' },
 }
 
 const STATUS_MAP = {
@@ -494,7 +495,7 @@ export default function IssuesPage() {
                     {/* Priority */}
                     <td>
                       <span className={`priority-badge ${pri.class}`}>
-                        {pri.dot} {pri.label}
+                        <PixelIcon name={pri.iconName} size={10} color={pri.color} /> {pri.label}
                       </span>
                     </td>
 

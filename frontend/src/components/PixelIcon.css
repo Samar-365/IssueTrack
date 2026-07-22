@@ -1,0 +1,11 @@
+.pixel-icon {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  shape-rendering: crispEdges;
+  flex-shrink: 0;
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pixel-icon:hover {
+  transform: scale(1.15);
+}

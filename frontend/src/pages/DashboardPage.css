@@ -82,14 +82,14 @@
 
 .dash-team-val {
   font-size: var(--font-size-xl);
-  font-weight: 700;
-  color: var(--color-accent-blue);
+  font-weight: 800;
+  color: var(--color-text-primary);
 }
 
 .dash-team-lbl {
   font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-weight: 600;
 }
 
 .dash-team-divider {

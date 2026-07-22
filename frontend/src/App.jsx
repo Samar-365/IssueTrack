@@ -8,6 +8,7 @@ import ProjectsPage from './pages/ProjectsPage'
 import DashboardPage from './pages/DashboardPage'
 import ActivityLogsPage from './pages/ActivityLogsPage'
 import ReportsPage from './pages/ReportsPage'
+import PixelIcon from './components/PixelIcon'
 import './index.css'
 import './App.css'
 
@@ -22,7 +23,7 @@ function PlaceholderPage({ title, subtitle }) {
         </div>
       </div>
       <div className="glass-card" style={{ padding: '3rem', textAlign: 'center' }}>
-        <div className="empty-state-icon">🚧</div>
+        <div className="empty-state-icon"><PixelIcon name="construction" size={36} color="var(--color-text-secondary)" /></div>
         <h3 className="empty-state-title">Coming Soon</h3>
         <p className="empty-state-text">This module is under construction and will be available shortly.</p>
       </div>
@@ -65,7 +66,6 @@ function Sidebar() {
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <span className="logo-icon">⚡</span>
           <span className="logo-text">IssueTracker</span>
         </div>
         <p className="sidebar-tagline">Mini Jira</p>
@@ -142,9 +142,9 @@ function Header() {
           className="btn btn-ghost btn-sm"
           onClick={toggleTheme}
           title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-          style={{ fontSize: '1.2rem', padding: '6px' }}
+          style={{ padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          {theme === 'light' ? '🌙' : '☀️'}
+          <PixelIcon name={theme === 'light' ? 'moon' : 'sun'} size={18} color="var(--color-icon-fill)" />
         </button>
 
         <NotificationDropdown />

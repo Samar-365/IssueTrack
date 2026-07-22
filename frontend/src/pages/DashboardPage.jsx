@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dashboardAPI } from '../services/api'
 import Toast from '../components/Toast'
+import PixelIcon from '../components/PixelIcon'
 import './DashboardPage.css'
 
 const STATUS_LABELS = {
@@ -33,20 +34,20 @@ const ACTION_LABELS = {
   user_updated: 'Updated user',
 }
 
-const ACTION_ICONS = {
-  issue_created: '🆕',
-  issue_updated: '✏️',
-  issue_assigned: '👤',
-  issue_deleted: '🗑️',
-  status_changed: '🔄',
-  comment_added: '💬',
-  comment_edited: '📝',
-  comment_deleted: '❌',
-  project_created: '📁',
-  project_updated: '📂',
-  project_archived: '📦',
-  user_created: '👥',
-  user_updated: '🔧',
+const ACTION_ICON_NAMES = {
+  issue_created: 'plus',
+  issue_updated: 'edit',
+  issue_assigned: 'user',
+  issue_deleted: 'trash',
+  status_changed: 'refresh',
+  comment_added: 'comment',
+  comment_edited: 'edit',
+  comment_deleted: 'trash',
+  project_created: 'folder',
+  project_updated: 'folder',
+  project_archived: 'archive',
+  user_created: 'group',
+  user_updated: 'wrench',
 }
 
 export default function DashboardPage() {
@@ -113,27 +114,27 @@ export default function DashboardPage() {
         <div className="dash-stat-card dash-stat-total" onClick={() => navigate('/issues')}>
           <div className="dash-stat-value">{issue_stats.total}</div>
           <div className="dash-stat-label">Total Issues</div>
-          <div className="dash-stat-icon">📊</div>
+          <div className="dash-stat-icon"><PixelIcon name="chart" size={24} color="var(--color-icon-fill)" /></div>
         </div>
         <div className="dash-stat-card dash-stat-open" onClick={() => navigate('/issues')}>
           <div className="dash-stat-value">{issue_stats.open}</div>
           <div className="dash-stat-label">Open</div>
-          <div className="dash-stat-icon">🔵</div>
+          <div className="dash-stat-icon"><PixelIcon name="circle" size={24} color="var(--color-icon-fill)" /></div>
         </div>
         <div className="dash-stat-card dash-stat-testing">
           <div className="dash-stat-value">{issue_stats.testing}</div>
           <div className="dash-stat-label">Testing</div>
-          <div className="dash-stat-icon">🧪</div>
+          <div className="dash-stat-icon"><PixelIcon name="flask" size={24} color="var(--color-icon-fill)" /></div>
         </div>
         <div className="dash-stat-card dash-stat-resolved">
           <div className="dash-stat-value">{issue_stats.resolved}</div>
           <div className="dash-stat-label">Resolved</div>
-          <div className="dash-stat-icon">✅</div>
+          <div className="dash-stat-icon"><PixelIcon name="check" size={24} color="var(--color-icon-fill)" /></div>
         </div>
         <div className="dash-stat-card dash-stat-overdue">
           <div className="dash-stat-value">{issue_stats.overdue}</div>
           <div className="dash-stat-label">Overdue</div>
-          <div className="dash-stat-icon">⚠️</div>
+          <div className="dash-stat-icon"><PixelIcon name="warning" size={24} color="var(--color-icon-fill)" /></div>
         </div>
       </div>
 
@@ -224,14 +225,14 @@ export default function DashboardPage() {
             <div className="dash-activity-list">
               {recent_activity.length === 0 ? (
                 <div className="empty-state" style={{ padding: '2rem' }}>
-                  <div className="empty-state-icon">📭</div>
+                  <div className="empty-state-icon"><PixelIcon name="empty" size={32} color="var(--color-text-muted)" /></div>
                   <p className="empty-state-text">No recent activity</p>
                 </div>
               ) : (
                 recent_activity.map((log) => (
                   <div key={log.log_id} className="dash-activity-item">
                     <span className="dash-activity-icon">
-                      {ACTION_ICONS[log.action] || '📌'}
+                      <PixelIcon name={ACTION_ICON_NAMES[log.action] || 'pin'} size={16} color="var(--color-icon-fill)" />
                     </span>
                     <div className="dash-activity-content">
                       <div className="dash-activity-text">

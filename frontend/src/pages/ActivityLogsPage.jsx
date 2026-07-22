@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { activityAPI } from '../services/api'
 import Toast from '../components/Toast'
+import PixelIcon from '../components/PixelIcon'
 import './ActivityLogsPage.css'
 
 const ACTION_LABELS = {
@@ -23,12 +24,20 @@ const ACTION_LABELS = {
   user_updated: 'Updated user',
 }
 
-const ACTION_ICONS = {
-  issue_created: '🆕', issue_updated: '✏️', issue_assigned: '👤',
-  issue_deleted: '🗑️', status_changed: '🔄', comment_added: '💬',
-  comment_edited: '📝', comment_deleted: '❌', project_created: '📁',
-  project_updated: '📂', project_archived: '📦', user_created: '👥',
-  user_updated: '🔧',
+const ACTION_ICON_NAMES = {
+  issue_created: 'plus',
+  issue_updated: 'edit',
+  issue_assigned: 'user',
+  issue_deleted: 'trash',
+  status_changed: 'refresh',
+  comment_added: 'comment',
+  comment_edited: 'edit',
+  comment_deleted: 'trash',
+  project_created: 'folder',
+  project_updated: 'folder',
+  project_archived: 'archive',
+  user_created: 'group',
+  user_updated: 'wrench',
 }
 
 const ENTITY_BADGE = {
@@ -191,7 +200,7 @@ export default function ActivityLogsPage() {
       ) : logs.length === 0 ? (
         <div className="glass-card">
           <div className="empty-state">
-            <div className="empty-state-icon">📭</div>
+            <div className="empty-state-icon"><PixelIcon name="empty" size={32} color="var(--color-text-muted)" /></div>
             <h3 className="empty-state-title">No Activity Found</h3>
             <p className="empty-state-text">
               {search || actionFilter || entityFilter
@@ -206,7 +215,7 @@ export default function ActivityLogsPage() {
             {logs.map((log) => (
               <div key={log.log_id} className="activity-timeline-item">
                 <div className="activity-tl-dot">
-                  <span>{ACTION_ICONS[log.action] || '📌'}</span>
+                  <PixelIcon name={ACTION_ICON_NAMES[log.action] || 'pin'} size={14} color="var(--color-icon-fill)" />
                 </div>
                 <div className="activity-tl-content">
                   <div className="activity-tl-header">

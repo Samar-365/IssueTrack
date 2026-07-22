@@ -76,9 +76,18 @@
 }
 
 .login-logo-icon {
-  font-size: 2.25rem;
-  margin-bottom: 0.5rem;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  background: var(--color-logo-bg);
+  color: var(--color-logo-fg);
+  border: 3px solid var(--color-text-primary);
+  border-radius: 6px;
+  box-shadow: 4px 4px 0px var(--color-text-primary);
+  margin-bottom: 0.75rem;
+  image-rendering: pixelated;
 }
 
 .login-title {

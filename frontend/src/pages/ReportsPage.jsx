@@ -5,25 +5,26 @@
 import { useState, useCallback } from 'react'
 import { reportsAPI } from '../services/api'
 import Toast from '../components/Toast'
+import PixelIcon from '../components/PixelIcon'
 import './ReportsPage.css'
 
 const REPORT_TYPES = [
   {
     key: 'issues',
     label: 'Issue Report',
-    icon: '🐛',
+    iconName: 'warning',
     desc: 'Detailed breakdown of all issues by status, priority, and assignment.',
   },
   {
     key: 'performance',
     label: 'Employee Performance',
-    icon: '📈',
+    iconName: 'report',
     desc: 'Resolution rates, workload, and engagement metrics for each team member.',
   },
   {
     key: 'projects',
     label: 'Project Completion',
-    icon: '📊',
+    iconName: 'chart',
     desc: 'Progress tracking, team size, and overdue issues per project.',
   },
 ]
@@ -102,7 +103,9 @@ export default function ReportsPage() {
             className={`reports-type-card ${activeReport === rt.key ? 'active' : ''}`}
             onClick={() => generateReport(rt.key)}
           >
-            <div className="reports-type-icon">{rt.icon}</div>
+            <div className="reports-type-icon">
+              <PixelIcon name={rt.iconName} size={26} color="var(--color-icon-fill)" />
+            </div>
             <h3 className="reports-type-label">{rt.label}</h3>
             <p className="reports-type-desc">{rt.desc}</p>
             <div className="reports-type-actions" style={{ flexWrap: 'wrap', gap: '0.35rem' }}>
