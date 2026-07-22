@@ -10,11 +10,14 @@
   width: var(--sidebar-width);
   height: 100vh;
   background: var(--color-bg-secondary);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   z-index: 100;
   overflow-y: auto;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.05);
 }
 
 .sidebar-header {
@@ -29,21 +32,30 @@
 }
 
 .logo-icon {
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: var(--color-accent-blue);
+  width: 40px;
+  height: 40px;
+  background: var(--gradient-primary);
   color: white;
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow-glow-primary);
+  transform: rotate(-3deg);
+  transition: transform var(--transition-fast);
+}
+
+.sidebar-logo:hover .logo-icon {
+  transform: rotate(0deg) scale(1.05);
 }
 
 .logo-text {
-  font-size: var(--font-size-lg);
+  font-size: 1.2rem;
   font-weight: 800;
-  color: var(--color-text-primary);
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;
 }
 
@@ -51,30 +63,30 @@
   font-size: 0.65rem;
   color: var(--color-text-muted);
   margin-top: 2px;
-  margin-left: calc(36px + var(--space-3));
+  margin-left: calc(40px + var(--space-3));
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 500;
+  letter-spacing: 0.12em;
+  font-weight: 700;
 }
 
 /* --- Sidebar Nav --- */
 .sidebar-nav {
   flex: 1;
-  padding: var(--space-3) var(--space-3);
+  padding: var(--space-4) var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .sidebar-nav-item {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: var(--radius-md);
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: none;
   transition: all var(--transition-fast);
   position: relative;
@@ -83,16 +95,18 @@
 .sidebar-nav-item:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-primary);
+  transform: translateX(3px);
 }
 
 .sidebar-nav-item.active {
-  background: var(--color-accent-blue-light);
-  color: var(--color-accent-blue);
-  font-weight: 600;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(236, 72, 153, 0.15));
+  color: var(--color-text-primary);
+  font-weight: 700;
+  box-shadow: 0 4px 15px -3px rgba(99, 102, 241, 0.2);
 }
 
 .sidebar-nav-icon {
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   flex-shrink: 0;
 }
 
@@ -101,10 +115,11 @@
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 3px;
-  height: 60%;
-  background: var(--color-accent-blue);
+  width: 4px;
+  height: 65%;
+  background: var(--gradient-primary);
   border-radius: var(--radius-full);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
 }
 
 /* --- Sidebar Footer --- */
@@ -132,7 +147,8 @@
 
 .sidebar-logout-btn:hover {
   color: var(--color-accent-rose);
-  background: var(--color-accent-rose-light);
+  background: rgba(244, 63, 94, 0.15);
+  transform: scale(1.1);
 }
 
 .sidebar-user-info {
@@ -142,28 +158,30 @@
 }
 
 .sidebar-avatar {
-  width: 34px;
-  height: 34px;
-  background: var(--color-accent-blue);
+  width: 38px;
+  height: 38px;
+  background: var(--gradient-primary);
   border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: 800;
   font-size: var(--font-size-xs);
   color: white;
   flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
 }
 
 .sidebar-user-name {
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text-primary);
 }
 
 .sidebar-user-role {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+  text-transform: capitalize;
 }
 
 /* --- Header --- */
@@ -173,9 +191,9 @@
   left: var(--sidebar-width);
   right: 0;
   height: var(--header-height);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--color-bg-secondary);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
