@@ -79,4 +79,34 @@ export const issuesAPI = {
   stats:        ()             => api.get('/issues/stats'),
 }
 
+// ---- Comment System API helpers ----
+export const commentsAPI = {
+  list:   (issueId)          => api.get(`/comments/issue/${issueId}`),
+  add:    (issueId, text)    => api.post(`/comments/issue/${issueId}`, { comment_text: text }),
+  edit:   (commentId, text)  => api.put(`/comments/${commentId}`, { comment_text: text }),
+  delete: (commentId)        => api.delete(`/comments/${commentId}`),
+}
+
+// ---- Dashboard API helpers ----
+export const dashboardAPI = {
+  get: () => api.get('/dashboard'),
+}
+
+// ---- Activity Log API helpers ----
+export const activityAPI = {
+  list:  (params) => api.get('/activity', { params }),
+  stats: ()       => api.get('/activity/stats'),
+  users: ()       => api.get('/activity/users'),
+}
+
+// ---- Reports API helpers ----
+export const reportsAPI = {
+  issues:      (params) => api.get('/reports/issues', { params }),
+  performance: ()       => api.get('/reports/performance'),
+  projects:    ()       => api.get('/reports/projects'),
+  export:      (type)   => api.get(`/reports/export/${type}`, { responseType: 'blob' }),
+  exportPDF:   (type)   => api.get(`/reports/export-pdf/${type}`, { responseType: 'blob' }),
+}
+
+
 export default api

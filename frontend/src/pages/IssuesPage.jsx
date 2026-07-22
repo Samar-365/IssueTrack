@@ -7,6 +7,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { issuesAPI, projectsAPI } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import IssueFormModal from '../components/IssueFormModal'
+import CommentsPanel from '../components/CommentsPanel'
+import KanbanBoard from '../components/KanbanBoard'
 import { useToast, ToastContainer } from '../components/Toast'
 import {
   HiOutlinePlus,
@@ -18,6 +20,9 @@ import {
   HiOutlineClock,
   HiOutlineCheckCircle,
   HiOutlineFolder,
+  HiOutlineChatAlt2,
+  HiOutlineViewList,
+  HiOutlineViewBoards,
 } from 'react-icons/hi'
 import './IssuesPage.css'
 
@@ -50,6 +55,9 @@ export default function IssuesPage() {
   const { user } = useAuth()
   const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'manager'
 
+  // View Mode: 'list' | 'kanban'
+  const [viewMode, setViewMode] = useState('list')
+
   // State
   const [issues, setIssues] = useState([])
   const [stats, setStats] = useState(null)
@@ -61,9 +69,14 @@ export default function IssuesPage() {
   const [projectFilter, setProjectFilter] = useState('')
   const [sortBy, setSortBy] = useState('newest')
 
+
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
   const [editingIssue, setEditingIssue] = useState(null)
+
+  // Comments panel state
+  const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)
+  const [commentsPanelIssue, setCommentsPanelIssue] = useState(null)
 
   // Toast
   const { toasts, addToast, removeToast } = useToast()
@@ -176,6 +189,16 @@ export default function IssuesPage() {
     setEditingIssue(null)
   }
 
+  const openComments = (issue) => {
+    setCommentsPanelIssue(issue)
+    setCommentsPanelOpen(true)
+  }
+
+  const closeComments = () => {
+    setCommentsPanelOpen(false)
+    setCommentsPanelIssue(null)
+  }
+
   // Format date for display
   const formatDate = (dateStr) => {
     if (!dateStr) return '—'
@@ -214,12 +237,33 @@ export default function IssuesPage() {
           <h1 className="page-title">Issues</h1>
           <p className="page-subtitle">Track, assign, and manage issues across projects</p>
         </div>
-        {isManagerOrAdmin && (
-          <button className="btn btn-primary" onClick={openCreate} id="create-issue-btn">
-            <HiOutlinePlus /> New Issue
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+          {/* View Toggle */}
+          <div className="view-mode-toggle" style={{ display: 'flex', background: 'var(--color-bg-secondary)', padding: '3px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
+            <button
+              className={`btn btn-xs ${viewMode === 'list' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setViewMode('list')}
+              title="List View"
+            >
+              <HiOutlineViewList /> List
+            </button>
+            <button
+              className={`btn btn-xs ${viewMode === 'kanban' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setViewMode('kanban')}
+              title="Kanban Board View"
+            >
+              <HiOutlineViewBoards /> Board
+            </button>
+          </div>
+
+          {isManagerOrAdmin && (
+            <button className="btn btn-primary" onClick={openCreate} id="create-issue-btn">
+              <HiOutlinePlus /> New Issue
+            </button>
+          )}
+        </div>
       </div>
+
 
       {/* Stat Cards */}
       {stats && (
@@ -400,8 +444,19 @@ export default function IssuesPage() {
         </div>
       )}
 
-      {/* Issues Table */}
-      {!loading && issues.length > 0 && (
+      {/* Issues Content (Table or Kanban) */}
+      {!loading && issues.length > 0 && viewMode === 'kanban' && (
+        <KanbanBoard
+          issues={issues}
+          onStatusChange={handleStatusChange}
+          onEdit={openEdit}
+          onDelete={handleDelete}
+          onOpenComments={openComments}
+          isManagerOrAdmin={isManagerOrAdmin}
+        />
+      )}
+
+      {!loading && issues.length > 0 && viewMode === 'list' && (
         <div className="issues-table-wrapper">
           <table className="issues-table">
             <thead>
@@ -412,7 +467,7 @@ export default function IssuesPage() {
                 <th>Assignee</th>
                 <th>Due Date</th>
                 <th>Created</th>
-                {isManagerOrAdmin && <th style={{ textAlign: 'right' }}>Actions</th>}
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -486,27 +541,40 @@ export default function IssuesPage() {
                     </td>
 
                     {/* Actions */}
-                    {isManagerOrAdmin && (
-                      <td>
-                        <div className="issue-actions" style={{ justifyContent: 'flex-end' }}>
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => openEdit(issue)}
-                            title="Edit issue"
-                          >
-                            <HiOutlinePencil />
-                          </button>
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => handleDelete(issue)}
-                            title="Delete issue"
-                            style={{ color: 'var(--color-accent-rose)' }}
-                          >
-                            <HiOutlineTrash />
-                          </button>
-                        </div>
-                      </td>
-                    )}
+                    <td>
+                      <div className="issue-actions" style={{ justifyContent: 'flex-end' }}>
+                        <button
+                          className="btn btn-ghost btn-sm comments-btn"
+                          onClick={() => openComments(issue)}
+                          title="View comments"
+                          id={`comments-btn-${issue.issue_id}`}
+                        >
+                          <HiOutlineChatAlt2 />
+                          {issue.comment_count > 0 && (
+                            <span className="comment-count-badge">{issue.comment_count}</span>
+                          )}
+                        </button>
+                        {isManagerOrAdmin && (
+                          <>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => openEdit(issue)}
+                              title="Edit issue"
+                            >
+                              <HiOutlinePencil />
+                            </button>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => handleDelete(issue)}
+                              title="Delete issue"
+                              style={{ color: 'var(--color-accent-rose)' }}
+                            >
+                              <HiOutlineTrash />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 )
               })}
@@ -515,12 +583,20 @@ export default function IssuesPage() {
         </div>
       )}
 
+
       {/* Modal */}
       <IssueFormModal
         isOpen={modalOpen}
         onClose={closeModal}
         onSubmit={editingIssue ? handleEdit : handleCreate}
         issue={editingIssue}
+      />
+
+      {/* Comments Panel */}
+      <CommentsPanel
+        isOpen={commentsPanelOpen}
+        onClose={closeComments}
+        issue={commentsPanelIssue}
       />
     </div>
   )

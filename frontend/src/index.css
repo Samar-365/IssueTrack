@@ -57,7 +57,6 @@
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
   --shadow-focus: 0 0 0 3px rgba(37, 99, 235, 0.12);
 
@@ -98,6 +97,24 @@
   /* Layout */
   --sidebar-width: 248px;
   --header-height: 56px;
+}
+
+/* --- Dark Theme Overrides --- */
+[data-theme="dark"] {
+  --color-bg-primary: #0b0f19;
+  --color-bg-secondary: #111827;
+  --color-bg-tertiary: #1f2937;
+  --color-bg-card: #111827;
+  --color-bg-hover: #1f2937;
+  --color-bg-elevated: #1f2937;
+
+  --color-text-primary: #f9fafb;
+  --color-text-secondary: #d1d5db;
+  --color-text-muted: #6b7280;
+  --color-text-inverse: #0f172a;
+
+  --color-border: #1f2937;
+  --color-border-hover: #374151;
 }
 
 /* --- Reset & Base --- */

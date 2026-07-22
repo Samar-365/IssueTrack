@@ -66,3 +66,12 @@ export function ToastContainer({ toasts, removeToast }) {
     </div>
   )
 }
+
+export default function Toast({ type = 'info', message, onClose }) {
+  if (!message) return null
+  return (
+    <div className="toast-container">
+      <ToastItem toast={{ id: 1, message, type, duration: 4000 }} onRemove={onClose || (() => {})} />
+    </div>
+  )
+}

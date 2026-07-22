@@ -31,7 +31,17 @@ class ProductionConfig(Config):
     )
 
 
+class TestingConfig(Config):
+    """Testing configuration — uses in-memory SQLite."""
+    TESTING = True
+    DEBUG = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    WTF_CSRF_ENABLED = False
+
+
 config_by_name = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
+    'testing': TestingConfig,
 }
+

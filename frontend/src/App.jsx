@@ -5,6 +5,9 @@ import LoginPage from './pages/LoginPage'
 import UsersPage from './pages/UsersPage'
 import IssuesPage from './pages/IssuesPage'
 import ProjectsPage from './pages/ProjectsPage'
+import DashboardPage from './pages/DashboardPage'
+import ActivityLogsPage from './pages/ActivityLogsPage'
+import ReportsPage from './pages/ReportsPage'
 import './index.css'
 import './App.css'
 
@@ -27,18 +30,7 @@ function PlaceholderPage({ title, subtitle }) {
   )
 }
 
-function Dashboard() {
-  return <PlaceholderPage title="Dashboard" subtitle="Overview of all projects and issues" />
-}
-/* Projects page is now a real component — imported from pages/ProjectsPage */
-/* Issues page is now a real component — imported from pages/IssuesPage */
-/* Users page is now a real component — imported from pages/UsersPage */
-function ActivityLogs() {
-  return <PlaceholderPage title="Activity Logs" subtitle="View system activity" />
-}
-function Reports() {
-  return <PlaceholderPage title="Reports" subtitle="Generate and export reports" />
-}
+/* All pages are now real components — imported from pages/ */
 
 /* ---- Sidebar Component ---- */
 import { useLocation, Link } from 'react-router-dom'
@@ -117,9 +109,23 @@ function Sidebar() {
   )
 }
 
+import NotificationDropdown from './components/NotificationDropdown'
+import { HiOutlineSun, HiOutlineMoon } from 'react-icons/hi'
+import { useState, useEffect } from 'react'
+
 /* ---- Header Component ---- */
 function Header() {
   const { user } = useAuth()
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+  }
 
   return (
     <header className="app-header">
@@ -131,12 +137,24 @@ function Header() {
           style={{ maxWidth: '400px', background: 'var(--color-bg-tertiary)' }}
         />
       </div>
-      <div className="header-actions">
-        <span className="badge badge-emerald">{user?.role || 'v1.0'}</span>
+      <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={toggleTheme}
+          title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+          style={{ fontSize: '1.2rem', padding: '6px' }}
+        >
+          {theme === 'light' ? '🌙' : '☀️'}
+        </button>
+
+        <NotificationDropdown />
+
+        <span className="badge badge-emerald">{user?.role ? user.role.toUpperCase() : 'v1.0'}</span>
       </div>
     </header>
   )
 }
+
 
 /* ---- App Shell (protected layout wrapper) ---- */
 function AppLayout() {
@@ -147,12 +165,12 @@ function AppLayout() {
         <Header />
         <main className="main-content">
           <Routes>
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/issues" element={<IssuesPage />} />
             <Route path="/users" element={<UsersPage />} />
-            <Route path="/activity" element={<ActivityLogs />} />
-            <Route path="/reports" element={<Reports />} />
+            <Route path="/activity" element={<ActivityLogsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>

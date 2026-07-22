@@ -238,6 +238,13 @@ def create_issue():
         _log_activity(creator_id, 'issue_assigned',
                       f'Assigned issue "{title}" to user #{assigned_to}',
                       entity_id=issue.issue_id)
+        from models.notification import Notification
+        notif = Notification(
+            user_id=assigned_to,
+            title='New Issue Assigned',
+            message=f'You have been assigned to issue #{issue.issue_id}: "{title}"'
+        )
+        db.session.add(notif)
 
     db.session.commit()
 
@@ -245,6 +252,7 @@ def create_issue():
         'message': f'Issue "{title}" created successfully',
         'issue': issue.to_dict(),
     }), 201
+
 
 
 # --------------------------------------------------
