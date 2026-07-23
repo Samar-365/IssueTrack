@@ -15,20 +15,20 @@
   --color-bg-hover: rgba(0, 0, 0, 0.06);
   --color-bg-elevated: #ffffff;
 
-  /* Accent Colors - Black, White, Grey Shades */
-  --color-accent-blue: #18181b;
-  --color-accent-blue-hover: #000000;
-  --color-accent-blue-light: #e4e4e7;
-  --color-accent-violet: #27272a;
-  --color-accent-violet-light: #e4e4e7;
-  --color-accent-emerald: #3f3f46;
-  --color-accent-emerald-light: #e4e4e7;
-  --color-accent-amber: #52525b;
-  --color-accent-amber-light: #f4f4f5;
-  --color-accent-rose: #18181b;
-  --color-accent-rose-light: #f4f4f5;
-  --color-accent-cyan: #71717a;
-  --color-accent-pink: #3f3f46;
+  /* Accent Colors - High Contrast Palette */
+  --color-accent-blue: #2563eb;
+  --color-accent-blue-hover: #1d4ed8;
+  --color-accent-blue-light: #eff6ff;
+  --color-accent-violet: #7c3aed;
+  --color-accent-violet-light: #f5f3ff;
+  --color-accent-emerald: #059669;
+  --color-accent-emerald-light: #ecfdf5;
+  --color-accent-amber: #d97706;
+  --color-accent-amber-light: #fffbeb;
+  --color-accent-rose: #dc2626;
+  --color-accent-rose-light: #fef2f2;
+  --color-accent-cyan: #0891b2;
+  --color-accent-pink: #db2777;
 
   /* Gradients - Monochrome Fills */
   --gradient-primary: linear-gradient(135deg, #18181b 0%, #3f3f46 50%, #71717a 100%);
@@ -66,7 +66,7 @@
   --color-status-resolved: #71717a;
   --color-status-closed: #a1a1aa;
 
-  /* Expressive Monochrome Shadows */
+  /* Expressive Shadows */
   --shadow-xs: 0 2px 4px rgba(0, 0, 0, 0.05);
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
@@ -115,7 +115,7 @@
   --header-height: 64px;
 }
 
-/* --- Dark Theme Overrides - High Contrast Obsidian & White --- */
+/* --- Dark Theme Overrides - High Contrast Obsidian & Vibrant Accents --- */
 [data-theme="dark"] {
   --color-bg-primary: #09090b;
   --color-bg-secondary: rgba(18, 18, 20, 0.9);
@@ -124,6 +124,20 @@
   --color-bg-hover: rgba(255, 255, 255, 0.12);
   --color-bg-elevated: #27272a;
 
+  --color-accent-blue: #60a5fa;
+  --color-accent-blue-hover: #93c5fd;
+  --color-accent-blue-light: rgba(96, 165, 250, 0.2);
+  --color-accent-violet: #c084fc;
+  --color-accent-violet-light: rgba(192, 132, 252, 0.2);
+  --color-accent-emerald: #34d399;
+  --color-accent-emerald-light: rgba(52, 211, 153, 0.2);
+  --color-accent-amber: #fbbf24;
+  --color-accent-amber-light: rgba(251, 191, 36, 0.2);
+  --color-accent-rose: #f87171;
+  --color-accent-rose-light: rgba(248, 113, 113, 0.2);
+  --color-accent-cyan: #22d3ee;
+  --color-accent-pink: #f472b6;
+
   --gradient-primary: linear-gradient(135deg, #ffffff 0%, #e4e4e7 50%, #a1a1aa 100%);
   --gradient-hover: linear-gradient(135deg, #f4f4f5 0%, #d4d4d8 50%, #8a8a93 100%);
   --gradient-card-border: linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(161, 161, 170, 0.3));
@@ -131,7 +145,7 @@
 
   --color-text-primary: #ffffff;
   --color-text-secondary: #f4f4f5;
-  --color-text-muted: #e4e4e7;
+  --color-text-muted: #a1a1aa;
   --color-text-inverse: #09090b;
 
   --color-icon-fill: #ffffff;
@@ -150,8 +164,8 @@
   --color-status-resolved: #a1a1aa;
   --color-status-closed: #71717a;
 
-  --color-border: rgba(255, 255, 255, 0.25);
-  --color-border-hover: rgba(255, 255, 255, 0.5);
+  --color-border: rgba(255, 255, 255, 0.18);
+  --color-border-hover: rgba(255, 255, 255, 0.4);
 
   --shadow-sm: 0 4px 20px rgba(0, 0, 0, 0.6);
   --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.8);
