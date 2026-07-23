@@ -79,6 +79,28 @@ export default function IssuesPage() {
   const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)
   const [commentsPanelIssue, setCommentsPanelIssue] = useState(null)
 
+  // Track read comment counts per issue
+  const [readCommentsMap, setReadCommentsMap] = useState(() => {
+    try {
+      const stored = localStorage.getItem('issue_tracker_read_comments')
+      return stored ? JSON.parse(stored) : {}
+    } catch {
+      return {}
+    }
+  })
+
+  const markCommentsAsRead = useCallback((issueId, count) => {
+    try {
+      const stored = localStorage.getItem('issue_tracker_read_comments')
+      const map = stored ? JSON.parse(stored) : {}
+      map[issueId] = count
+      localStorage.setItem('issue_tracker_read_comments', JSON.stringify(map))
+      setReadCommentsMap((prev) => ({ ...prev, [issueId]: count }))
+    } catch (e) {
+      console.error(e)
+    }
+  }, [])
+
   // Toast
   const { toasts, addToast, removeToast } = useToast()
 
@@ -191,13 +213,18 @@ export default function IssuesPage() {
   }
 
   const openComments = (issue) => {
+    markCommentsAsRead(issue.issue_id, issue.comment_count || 0)
     setCommentsPanelIssue(issue)
     setCommentsPanelOpen(true)
   }
 
   const closeComments = () => {
+    if (commentsPanelIssue) {
+      markCommentsAsRead(commentsPanelIssue.issue_id, commentsPanelIssue.comment_count || 0)
+    }
     setCommentsPanelOpen(false)
     setCommentsPanelIssue(null)
+    fetchIssues()
   }
 
   // Format date for display
@@ -454,6 +481,7 @@ export default function IssuesPage() {
           onDelete={handleDelete}
           onOpenComments={openComments}
           isManagerOrAdmin={isManagerOrAdmin}
+          readCommentsMap={readCommentsMap}
         />
       )}
 
@@ -476,6 +504,8 @@ export default function IssuesPage() {
                 const pri = PRIORITY_MAP[issue.priority] || PRIORITY_MAP.medium
                 const dueDateClass = getDueDateClass(issue.due_date, issue.status)
                 const transitionOptions = getTransitionOptions(issue)
+                const readCount = readCommentsMap[issue.issue_id] || 0
+                const unreadCount = Math.max(0, (issue.comment_count || 0) - readCount)
 
                 return (
                   <tr key={issue.issue_id}>
@@ -547,12 +577,12 @@ export default function IssuesPage() {
                         <button
                           className="btn btn-ghost btn-sm comments-btn"
                           onClick={() => openComments(issue)}
-                          title="View comments"
+                          title={unreadCount > 0 ? `${unreadCount} unread comment(s)` : "View comments"}
                           id={`comments-btn-${issue.issue_id}`}
                         >
                           <HiOutlineChatAlt2 />
-                          {issue.comment_count > 0 && (
-                            <span className="comment-count-badge">{issue.comment_count}</span>
+                          {unreadCount > 0 && (
+                            <span className="comment-count-badge">{unreadCount}</span>
                           )}
                         </button>
                         {isManagerOrAdmin && (

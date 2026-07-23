@@ -43,6 +43,7 @@ export default function KanbanBoard({
   onDelete,
   onOpenComments,
   isManagerOrAdmin,
+  readCommentsMap = {},
 }) {
   const [draggedIssue, setDraggedIssue] = useState(null)
   const [dragOverColumn, setDragOverColumn] = useState(null)
@@ -174,14 +175,21 @@ export default function KanbanBoard({
                         )}
 
                         <div className="kanban-card-actions">
-                          <button
-                            className="btn btn-ghost btn-xs"
-                            onClick={() => onOpenComments(issue)}
-                            title="Comments"
-                          >
-                            <HiOutlineChatAlt2 />
-                            {issue.comment_count > 0 && <span>{issue.comment_count}</span>}
-                          </button>
+                          {(() => {
+                            const readCount = readCommentsMap[issue.issue_id] || 0
+                            const unreadCount = Math.max(0, (issue.comment_count || 0) - readCount)
+                            return (
+                              <button
+                                className="btn btn-ghost btn-xs comments-btn"
+                                onClick={() => onOpenComments(issue)}
+                                title={unreadCount > 0 ? `${unreadCount} unread comment(s)` : "View comments"}
+                                style={{ position: 'relative' }}
+                              >
+                                <HiOutlineChatAlt2 />
+                                {unreadCount > 0 && <span className="comment-count-badge">{unreadCount}</span>}
+                              </button>
+                            )
+                          })()}
 
                           {isManagerOrAdmin && (
                             <>
