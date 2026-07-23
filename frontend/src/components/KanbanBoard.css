@@ -2,11 +2,19 @@
 
 .kanban-container {
   display: grid;
-  grid-template-columns: repeat(5, minmax(260px, 1fr));
-  gap: var(--space-4);
-  overflow-x: auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 100%;
   padding-bottom: var(--space-4);
   align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .kanban-container {
+    overflow-x: auto;
+    grid-template-columns: repeat(5, minmax(220px, 1fr));
+  }
 }
 
 .kanban-column {
@@ -15,6 +23,7 @@
   border-radius: var(--radius-xl);
   padding: var(--space-3);
   min-height: 500px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   transition: border-color var(--transition-fast), background var(--transition-fast);
