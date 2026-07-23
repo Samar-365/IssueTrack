@@ -79,11 +79,12 @@ export default function ProjectsPage() {
   }
 
   const handleArchive = async (project) => {
-    const action = project.status === 'active' ? 'archive' : 'restore'
-    if (!window.confirm(`Are you sure you want to ${action} "${project.project_name}"?`)) return
+    const isArchiving = project.status === 'active'
+    const action = isArchiving ? 'archive' : 'restore'
     try {
       const res = await projectsAPI.archive(project.project_id)
-      addToast(res.data.message, 'success')
+      const hint = isArchiving && statusFilter === 'active' ? ' (Filter: Active)' : ''
+      addToast((res.data?.message || `Project "${project.project_name}" ${isArchiving ? 'archived' : 'restored'}`) + hint, 'success')
       fetchProjects()
     } catch (err) {
       addToast(err.response?.data?.error || `Failed to ${action} project`, 'error')
