@@ -139,7 +139,7 @@ def receive_github_webhook():
                 actor_user_id = issue.assigned_to or issue.created_by or 1
 
             action_name = 'github_pr_linked' if gh_event.event_type == 'pull_request' else 'github_commit_linked'
-            status_note = f' (Status updated: {old_status} → {new_status})' if changed else ''
+            status_note = f' (Status updated: {old_status} -> {new_status})' if changed else ''
             log_details = f'Linked {gh_event.event_type} [{gh_event.short_sha}] by {gh_event.author_name}: "{gh_event.message}"{status_note}'
 
             activity_entry = ActivityLog(

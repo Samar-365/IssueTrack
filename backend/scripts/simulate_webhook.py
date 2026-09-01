@@ -156,7 +156,7 @@ def main():
     args = parser.parse_args()
 
     print(f"\n{'='*60}")
-    print(f"🚀 IssueTrack GitHub Webhook Simulator")
+    print(f">> IssueTrack GitHub Webhook Simulator")
     print(f"{'='*60}")
     print(f"Target URL   : {args.url}")
     print(f"Event Type   : {args.type}")
@@ -194,18 +194,18 @@ def main():
         with urllib.request.urlopen(req) as response:
             res_body = response.read().decode('utf-8')
             res_json = json.loads(res_body)
-            print(f"\n✅ Status: {response.status} OK")
+            print(f"\n[OK] Status: {response.status} OK")
             print(f"Response:\n{json.dumps(res_json, indent=2)}")
     except urllib.error.HTTPError as e:
         err_body = e.read().decode('utf-8')
-        print(f"\n❌ HTTP Error {e.code}: {e.reason}")
+        print(f"\n[ERROR] HTTP Error {e.code}: {e.reason}")
         try:
             print(f"Details:\n{json.dumps(json.loads(err_body), indent=2)}")
         except Exception:
             print(f"Details:\n{err_body}")
         sys.exit(1)
     except urllib.error.URLError as e:
-        print(f"\n❌ Connection Failed: {e.reason}")
+        print(f"\n[ERROR] Connection Failed: {e.reason}")
         print("Make sure the IssueTrack backend server is running on http://127.0.0.1:5005")
         sys.exit(1)
 
