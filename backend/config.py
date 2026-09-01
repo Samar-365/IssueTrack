@@ -12,6 +12,11 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=2)
     JWT_TOKEN_LOCATION = ['headers']
 
+    # GitHub Webhook Configuration
+    GITHUB_WEBHOOK_SECRET = os.environ.get('GITHUB_WEBHOOK_SECRET', '')
+    GITHUB_DEFAULT_BRANCH = os.environ.get('GITHUB_DEFAULT_BRANCH', 'main')
+    GITHUB_AUTO_CLOSE_ENABLED = os.environ.get('GITHUB_AUTO_CLOSE_ENABLED', 'true').lower() in ('true', '1', 'yes')
+
 
 class DevelopmentConfig(Config):
     """Development configuration — uses SQLite."""
@@ -37,6 +42,7 @@ class TestingConfig(Config):
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     WTF_CSRF_ENABLED = False
+    GITHUB_WEBHOOK_SECRET = 'test-webhook-secret'
 
 
 config_by_name = {
