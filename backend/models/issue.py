@@ -21,6 +21,8 @@ class Issue(db.Model):
 
     # Relationships
     comments = db.relationship('Comment', backref='issue', lazy=True, cascade='all, delete-orphan')
+    github_events = db.relationship('GitHubEvent', backref='issue', lazy=True, cascade='all, delete-orphan',
+                                    order_by='GitHubEvent.timestamp.desc()')
 
     # Valid status transitions
     VALID_TRANSITIONS = {
@@ -55,4 +57,5 @@ class Issue(db.Model):
             'creator_name': self.creator.name if self.creator else None,
             'project_name': self.project.project_name if self.project else None,
             'comment_count': len(self.comments) if self.comments else 0,
+            'github_event_count': len(self.github_events) if self.github_events else 0,
         }
