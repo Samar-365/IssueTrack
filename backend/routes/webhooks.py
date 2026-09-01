@@ -5,6 +5,7 @@ and updates issue statuses and GitHubEvent records.
 """
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from models import db
 from models.issue import Issue
 from models.github_event import GitHubEvent
@@ -15,6 +16,9 @@ from services.github_workflow import apply_github_workflow_transition
 webhooks_bp = Blueprint('webhooks', __name__)
 
 
+# --------------------------------------------------
+# POST /api/webhooks/github — Webhook Receiver
+# --------------------------------------------------
 @webhooks_bp.route('/github', methods=['POST'])
 def receive_github_webhook():
     """
@@ -175,4 +179,58 @@ def receive_github_webhook():
         'message': f'Successfully processed {len(processed_results)} issue reference(s)',
         'processed_count': len(processed_results),
         'results': processed_results
+    }), 200
+
+
+# --------------------------------------------------
+# GET /api/webhooks/events/<issue_id> — Query Linked Events
+# --------------------------------------------------
+@webhooks_bp.route('/events/<int:issue_id>', methods=['GET'])
+@jwt_required()
+def get_issue_github_events(issue_id):
+    """
+    Return all linked GitHub commits and PR events for an issue.
+    Employees can only view events for issues assigned to them.
+    Managers and Admins can view events for any issue.
+    """
+    issue = db.session.get(Issue, issue_id) if hasattr(db.session, 'get') else Issue.query.get(issue_id)
+    if not issue:
+        return jsonify({'error': 'Issue not found'}), 404
+
+    claims = get_jwt()
+    role = claims.get('role')
+    current_user_id = int(get_jwt_identity())
+
+    if role == 'employee' and issue.assigned_to != current_user_id:
+        return jsonify({'error': 'Access denied'}), 403
+
+    events = GitHubEvent.query.filter_by(issue_id=issue_id).order_by(GitHubEvent.timestamp.desc()).all()
+    return jsonify({
+        'issue_id': issue_id,
+        'events': [e.to_dict() for e in events],
+        'total': len(events)
+    }), 200
+
+
+# --------------------------------------------------
+# GET /api/webhooks/stats — Repository Integration Stats
+# --------------------------------------------------
+@webhooks_bp.route('/stats', methods=['GET'])
+@jwt_required()
+def get_github_stats():
+    """
+    Return aggregated GitHub integration metrics for widgets & reports.
+    """
+    total_events = GitHubEvent.query.count()
+    commits_count = GitHubEvent.query.filter_by(event_type='push').count()
+    prs_count = GitHubEvent.query.filter_by(event_type='pull_request').count()
+    distinct_issues = db.session.query(GitHubEvent.issue_id).distinct().count()
+
+    return jsonify({
+        'stats': {
+            'total_events': total_events,
+            'commits_linked': commits_count,
+            'prs_linked': prs_count,
+            'issues_with_github': distinct_issues
+        }
     }), 200
