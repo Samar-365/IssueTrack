@@ -119,6 +119,44 @@ def receive_github_webhook():
             )
             db.session.add(gh_event)
 
+            # --- Submodule 7: Audit Logging & Assignee Notification ---
+            from models.user import User
+            from models.activity_log import ActivityLog
+            from models.notification import Notification
+
+            # Attribute activity log to matching user by email, or fallback to issue creator/assignee/system user
+            actor_user_id = None
+            if gh_event.author_email:
+                matched_user = User.query.filter_by(email=gh_event.author_email).first()
+                if matched_user:
+                    actor_user_id = matched_user.user_id
+
+            if not actor_user_id:
+                actor_user_id = issue.assigned_to or issue.created_by or 1
+
+            action_name = 'github_pr_linked' if gh_event.event_type == 'pull_request' else 'github_commit_linked'
+            status_note = f' (Status updated: {old_status} → {new_status})' if changed else ''
+            log_details = f'Linked {gh_event.event_type} [{gh_event.short_sha}] by {gh_event.author_name}: "{gh_event.message}"{status_note}'
+
+            activity_entry = ActivityLog(
+                user_id=actor_user_id,
+                action=action_name,
+                details=log_details,
+                entity_type='issue',
+                entity_id=issue.issue_id
+            )
+            db.session.add(activity_entry)
+
+            # Notify assignee if assigned
+            if issue.assigned_to:
+                notif_msg = f'GitHub {gh_event.event_type} [{gh_event.short_sha}] by {gh_event.author_name} was linked to your issue "#{issue.title}"{status_note}'
+                notif = Notification(
+                    user_id=issue.assigned_to,
+                    title=f'GitHub Activity on #{issue.issue_id}',
+                    message=notif_msg
+                )
+                db.session.add(notif)
+
             processed_results.append({
                 'issue_id': issue.issue_id,
                 'issue_title': issue.title,
