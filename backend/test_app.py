@@ -209,5 +209,175 @@ class IssueTrackerTestCase(unittest.TestCase):
         self.assertEqual(notif_res.status_code, 200)
 
 
+class GitHubWebhooksTestCase(unittest.TestCase):
+    """Test Suite for GitHub Webhook Integration and Automated Workflow."""
+
+    def setUp(self):
+        self.app = create_app('testing')
+        self.client = self.app.test_client()
+        self.app_context = self.app.app_context()
+        self.app_context.push()
+        self.secret = self.app.config.get('GITHUB_WEBHOOK_SECRET', 'test-webhook-secret')
+
+        db.create_all()
+
+        # Seed admin and employee
+        self.admin = User(name='Admin Dev', email='admin@dev.io', role='admin')
+        self.admin.set_password('AdminPass123')
+        self.employee = User(name='Sam Dev', email='sam@dev.io', role='employee')
+        self.employee.set_password('EmpPass123')
+        db.session.add_all([self.admin, self.employee])
+        db.session.commit()
+
+        # Seed Project and Issue
+        self.project = Project(project_name='Backend Core', created_by=self.admin.user_id)
+        db.session.add(self.project)
+        db.session.commit()
+
+        self.issue = Issue(
+            title='Fix authentication cookie bug',
+            project_id=self.project.project_id,
+            created_by=self.admin.user_id,
+            assigned_to=self.employee.user_id,
+            status='open'
+        )
+        db.session.add(self.issue)
+        db.session.commit()
+
+        # Generate auth tokens
+        from flask_jwt_extended import create_access_token
+        self.admin_token = create_access_token(identity=str(self.admin.user_id), additional_claims={'role': 'admin'})
+        self.emp_token = create_access_token(identity=str(self.employee.user_id), additional_claims={'role': 'employee'})
+
+    def tearDown(self):
+        db.session.remove()
+        db.drop_all()
+        self.app_context.pop()
+
+    def _sign_payload(self, payload_bytes, secret=None):
+        from services.webhook_security import compute_github_signature
+        return compute_github_signature(payload_bytes, secret or self.secret)
+
+    def test_webhook_ping_handshake(self):
+        """Test GitHub ping event handshake."""
+        payload = json.dumps({'zen': 'Keep it simple.', 'hook_id': 12345}).encode('utf-8')
+        sig = self._sign_payload(payload)
+
+        res = self.client.post(
+            '/api/webhooks/github',
+            data=payload,
+            headers={'Content-Type': 'application/json', 'X-GitHub-Event': 'ping', 'X-Hub-Signature-256': sig}
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data['status'], 'ok')
+        self.assertIn('verified successfully', data['message'])
+
+    def test_webhook_signature_rejection(self):
+        """Test invalid or missing HMAC signature rejection."""
+        payload = json.dumps({'ref': 'refs/heads/main', 'commits': []}).encode('utf-8')
+
+        # Bad signature
+        res = self.client.post(
+            '/api/webhooks/github',
+            data=payload,
+            headers={'Content-Type': 'application/json', 'X-GitHub-Event': 'push', 'X-Hub-Signature-256': 'sha256=invalid'}
+        )
+        self.assertEqual(res.status_code, 401)
+
+    def test_webhook_push_auto_resolve(self):
+        """Test push commit with 'Fixes #<id>' automatically resolves issue and records audit log."""
+        issue_id = self.issue.issue_id
+        payload = json.dumps({
+            'ref': 'refs/heads/main',
+            'commits': [{
+                'id': 'a1b2c3d4e5f67890123456789012345678901234',
+                'message': f'Fix cookie validation flaw (Fixes #{issue_id})',
+                'url': 'https://github.com/Samar-365/IssueTrack/commit/a1b2c3d',
+                'author': {'name': 'Sam Dev', 'email': 'sam@dev.io'},
+                'timestamp': '2026-09-01T21:00:00Z'
+            }]
+        }).encode('utf-8')
+        sig = self._sign_payload(payload)
+
+        res = self.client.post(
+            '/api/webhooks/github',
+            data=payload,
+            headers={'Content-Type': 'application/json', 'X-GitHub-Event': 'push', 'X-Hub-Signature-256': sig}
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data['processed_count'], 1)
+        self.assertEqual(data['results'][0]['new_status'], 'resolved')
+
+        # Verify DB state
+        updated_issue = Issue.query.get(issue_id)
+        self.assertEqual(updated_issue.status, 'resolved')
+        self.assertEqual(len(updated_issue.github_events), 1)
+        self.assertEqual(updated_issue.github_events[0].short_sha, 'a1b2c3d')
+
+        # Verify ActivityLog and Notification
+        log = ActivityLog.query.filter_by(entity_id=issue_id).first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.action, 'github_commit_linked')
+
+    def test_webhook_pull_request_merge(self):
+        """Test merged pull request automatically resolves referenced issue."""
+        issue_id = self.issue.issue_id
+        payload = json.dumps({
+            'action': 'closed',
+            'pull_request': {
+                'number': 77,
+                'title': f'Feature: auth enhancements (Fixes #{issue_id})',
+                'body': 'Closes ticket completely',
+                'merged': True,
+                'html_url': 'https://github.com/Samar-365/IssueTrack/pull/77',
+                'user': {'login': 'samdev', 'avatar_url': 'https://avatar.url'},
+                'head': {'sha': 'f9e8d7c6b5a41234567890123456789012345678', 'ref': 'feature/auth'},
+                'updated_at': '2026-09-01T21:30:00Z'
+            }
+        }).encode('utf-8')
+        sig = self._sign_payload(payload)
+
+        res = self.client.post(
+            '/api/webhooks/github',
+            data=payload,
+            headers={'Content-Type': 'application/json', 'X-GitHub-Event': 'pull_request', 'X-Hub-Signature-256': sig}
+        )
+        self.assertEqual(res.status_code, 200)
+        updated_issue = Issue.query.get(issue_id)
+        self.assertEqual(updated_issue.status, 'resolved')
+
+    def test_query_github_events_endpoint(self):
+        """Test GET /api/webhooks/events/<issue_id> endpoint."""
+        issue_id = self.issue.issue_id
+        # Link a commit
+        payload = json.dumps({
+            'ref': 'refs/heads/main',
+            'commits': [{
+                'id': '1234567890abcdef1234567890abcdef12345678',
+                'message': f'Work on #{issue_id}',
+                'url': 'https://github.com/Samar-365/IssueTrack/commit/1234567',
+                'author': {'name': 'Sam Dev', 'email': 'sam@dev.io'},
+                'timestamp': '2026-09-01T21:00:00Z'
+            }]
+        }).encode('utf-8')
+        sig = self._sign_payload(payload)
+        self.client.post('/api/webhooks/github', data=payload, headers={'Content-Type': 'application/json', 'X-GitHub-Event': 'push', 'X-Hub-Signature-256': sig})
+
+        # Query events as admin
+        res = self.client.get(f'/api/webhooks/events/{issue_id}', headers={'Authorization': f'Bearer {self.admin_token}'})
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['events'][0]['short_sha'], '1234567')
+
+        # Query stats
+        stats_res = self.client.get('/api/webhooks/stats', headers={'Authorization': f'Bearer {self.admin_token}'})
+        self.assertEqual(stats_res.status_code, 200)
+        stats_data = stats_res.get_json()
+        self.assertEqual(stats_data['stats']['total_events'], 1)
+
+
 if __name__ == '__main__':
     unittest.main()

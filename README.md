@@ -28,6 +28,12 @@ A full-stack Issue & Project Management web application built with a **Flask RES
   - Export PDF summaries generated dynamically via **ReportLab**.
 - **Notifications**
   - Real-time in-app notification tracking for user updates and assignments.
+- **GitHub Integration & Webhook Sync**
+  - Two-way link between Git commits/PRs and IssueTrack tickets.
+  - Automated status workflow transitions (`Fixes #12` resolves issues, `WIP #12` sets to in-progress).
+  - HMAC-SHA256 signature verification (`X-Hub-Signature-256`) for security.
+  - In-app timeline view of linked commits, branch names, authors, and permalinks.
+  - Local simulation CLI tool for testing webhook payloads offline.
 
 ---
 
@@ -209,9 +215,46 @@ Upon running `db_init.py`, a default administrator account is automatically crea
 
 ---
 
+## GitHub Webhook Integration
+
+IssueTrack seamlessly integrates with GitHub to sync code commits and pull requests directly with issues.
+
+### 1. Supported Commit Keywords
+Mentioning an issue tag in commit messages or PR descriptions triggers automatic state updates:
+
+| Syntax | Intent | Action Taken in IssueTrack |
+| :--- | :--- | :--- |
+| `Fixes #12`, `Closes #12`, `Resolves #12` | Resolve | Moves issue status from `Open` / `In Progress` → **`Resolved`** |
+| `WIP #12`, `Working on #12`, `Ref #12` | Progress | Moves issue status from `Open` → **`In Progress`** |
+| `See #12`, `GH-12`, `#12` | Link | Links commit/PR reference to issue without state change |
+
+### 2. Setting up Webhook on GitHub
+1. In your GitHub repository, navigate to **Settings** → **Webhooks** → **Add webhook**.
+2. **Payload URL:** `https://your-domain.com/api/webhooks/github` (or your ngrok / cloud domain).
+3. **Content type:** `application/json`.
+4. **Secret:** Enter your `GITHUB_WEBHOOK_SECRET` string.
+5. **Events:** Select **Pushes** and **Pull requests**.
+6. Click **Add webhook**.
+
+### 3. Local Webhook Simulator (Offline Testing)
+You can test webhook processing and status transitions locally without setting up public tunnels:
+
+```bash
+# Simulate a commit resolving issue #1
+python backend/scripts/simulate_webhook.py --issue 1 --action fix
+
+# Simulate WIP progress on issue #2
+python backend/scripts/simulate_webhook.py --issue 2 --action wip --author "Alice Dev"
+
+# Simulate a merged Pull Request resolving issue #1
+python backend/scripts/simulate_webhook.py --type pull_request --issue 1 --merged
+```
+
+---
+
 ## Running Tests
 
-To run the backend automated test suite:
+To run the backend automated test suite (including all 10 modules + GitHub Webhooks suite):
 
 ```bash
 cd backend
