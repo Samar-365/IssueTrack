@@ -47,6 +47,7 @@ def create_app(config_name=None):
     from routes.dashboard import dashboard_bp
     from routes.reports import reports_bp
     from routes.notifications import notifications_bp
+    from routes.webhooks import webhooks_bp
 
     app.register_blueprint(users_bp, url_prefix='/api/users')
     app.register_blueprint(projects_bp, url_prefix='/api/projects')
@@ -56,6 +57,7 @@ def create_app(config_name=None):
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
     app.register_blueprint(reports_bp, url_prefix='/api/reports')
     app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
+    app.register_blueprint(webhooks_bp, url_prefix='/api/webhooks')
 
 
     @app.route('/api/health')
