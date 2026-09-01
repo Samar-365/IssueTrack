@@ -91,13 +91,40 @@ issue_tracker/
 
 ## Quick Start Guide
 
-### Prerequisites
+### Option A: Run with Docker (Recommended)
+
+Make sure [Docker](https://www.docker.com/) and [Docker Compose](https://docs.docker.com/compose/) are installed.
+
+1. **Build and start the application**:
+   ```bash
+   docker compose up --build
+   ```
+   Or to run in detached background mode:
+   ```bash
+   docker compose up -d --build
+   ```
+
+2. **Access the Application**:
+   - **Frontend UI:** [http://localhost:5173](http://localhost:5173)
+   - **Backend API:** [http://localhost:5005/api](http://localhost:5005/api)
+   - **Health Check:** [http://localhost:5005/api/health](http://localhost:5005/api/health)
+
+3. **Stop the containers**:
+   ```bash
+   docker compose down
+   ```
+
+---
+
+### Option B: Manual Local Setup
+
+#### Prerequisites
 - **Python:** 3.10 or higher
 - **Node.js:** v18 or higher (with npm)
 
 ---
 
-### 1. Setting Up the Backend
+#### 1. Setting Up the Backend
 
 1. Navigate to the `backend` directory:
    ```bash
