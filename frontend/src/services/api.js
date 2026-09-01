@@ -108,5 +108,11 @@ export const reportsAPI = {
   exportPDF:   (type)   => api.get(`/reports/export-pdf/${type}`, { responseType: 'blob' }),
 }
 
+// ---- GitHub Webhooks & Events API helpers ----
+export const webhooksAPI = {
+  events: (issueId) => api.get(`/webhooks/events/${issueId}`),
+  stats:  ()        => api.get('/webhooks/stats'),
+}
+
 
 export default api

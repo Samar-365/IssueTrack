@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import IssueFormModal from '../components/IssueFormModal'
 import CommentsPanel from '../components/CommentsPanel'
 import KanbanBoard from '../components/KanbanBoard'
+import GitHubEventsModal from '../components/GitHubEventsModal'
 import PixelIcon from '../components/PixelIcon'
 import { useToast, ToastContainer } from '../components/Toast'
 import {
@@ -25,6 +26,7 @@ import {
   HiOutlineViewList,
   HiOutlineViewBoards,
 } from 'react-icons/hi'
+import { FaGithub } from 'react-icons/fa6'
 import './IssuesPage.css'
 
 /* ---- Helper maps ---- */
@@ -78,6 +80,20 @@ export default function IssuesPage() {
   // Comments panel state
   const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)
   const [commentsPanelIssue, setCommentsPanelIssue] = useState(null)
+
+  // GitHub events modal state
+  const [ghModalOpen, setGhModalOpen] = useState(false)
+  const [ghModalIssue, setGhModalIssue] = useState(null)
+
+  const openGitHubEvents = (issue) => {
+    setGhModalIssue(issue)
+    setGhModalOpen(true)
+  }
+
+  const closeGitHubEvents = () => {
+    setGhModalOpen(false)
+    setGhModalIssue(null)
+  }
 
   // Track read comment counts per issue
   const [readCommentsMap, setReadCommentsMap] = useState(() => {
@@ -480,6 +496,7 @@ export default function IssuesPage() {
           onEdit={openEdit}
           onDelete={handleDelete}
           onOpenComments={openComments}
+          onOpenGitHubEvents={openGitHubEvents}
           isManagerOrAdmin={isManagerOrAdmin}
           readCommentsMap={readCommentsMap}
         />
@@ -506,6 +523,7 @@ export default function IssuesPage() {
                 const transitionOptions = getTransitionOptions(issue)
                 const readCount = readCommentsMap[issue.issue_id] || 0
                 const unreadCount = Math.max(0, (issue.comment_count || 0) - readCount)
+                const ghCount = issue.github_event_count || 0
 
                 return (
                   <tr key={issue.issue_id}>
@@ -574,6 +592,19 @@ export default function IssuesPage() {
                     {/* Actions */}
                     <td>
                       <div className="issue-actions" style={{ justifyContent: 'flex-end' }}>
+                        {/* GitHub Activity Button */}
+                        <button
+                          className={`btn btn-ghost btn-sm gh-action-btn ${ghCount > 0 ? 'has-gh-events' : ''}`}
+                          onClick={() => openGitHubEvents(issue)}
+                          title={ghCount > 0 ? `${ghCount} linked GitHub event(s)` : 'View GitHub activity'}
+                          id={`gh-events-btn-${issue.issue_id}`}
+                        >
+                          <FaGithub />
+                          {ghCount > 0 && (
+                            <span className="gh-event-badge">{ghCount}</span>
+                          )}
+                        </button>
+
                         <button
                           className="btn btn-ghost btn-sm comments-btn"
                           onClick={() => openComments(issue)}
@@ -628,6 +659,13 @@ export default function IssuesPage() {
         isOpen={commentsPanelOpen}
         onClose={closeComments}
         issue={commentsPanelIssue}
+      />
+
+      {/* GitHub Activity Modal */}
+      <GitHubEventsModal
+        isOpen={ghModalOpen}
+        onClose={closeGitHubEvents}
+        issue={ghModalIssue}
       />
     </div>
   )
