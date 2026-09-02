@@ -41,9 +41,29 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  // ---- Register ----
+  const register = useCallback(async (name, email, password, role = 'employee', team_id = '') => {
+    const res = await authAPI.register({ name, email, password, role, team_id })
+    const { access_token, user: userData } = res.data
+    localStorage.setItem('access_token', access_token)
+    localStorage.setItem('user', JSON.stringify(userData))
+    setUser(userData)
+    return userData
+  }, [])
+
   // ---- Login ----
   const login = useCallback(async (email, password) => {
     const res = await authAPI.login(email, password)
+    const { access_token, user: userData } = res.data
+    localStorage.setItem('access_token', access_token)
+    localStorage.setItem('user', JSON.stringify(userData))
+    setUser(userData)
+    return userData
+  }, [])
+
+  // ---- Team Login (Employee direct access via Team ID) ----
+  const teamLogin = useCallback(async (team_id, name = '') => {
+    const res = await authAPI.teamLogin({ team_id, name })
     const { access_token, user: userData } = res.data
     localStorage.setItem('access_token', access_token)
     localStorage.setItem('user', JSON.stringify(userData))
@@ -66,7 +86,9 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     loading,
+    register,
     login,
+    teamLogin,
     logout,
     isAuthenticated: !!user,
   }

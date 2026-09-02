@@ -14,6 +14,7 @@ import {
   HiOutlinePencil,
   HiOutlineBan,
   HiOutlineCheckCircle,
+  HiOutlineTrash,
   HiOutlineUsers,
   HiOutlineShieldCheck,
   HiOutlineBriefcase,
@@ -89,6 +90,19 @@ function UsersPage() {
     } catch (err) {
       const msg = err.response?.data?.error || 'Operation failed'
       addToast(msg, 'error')
+    }
+  }
+
+  const handleDeleteUser = async (user) => {
+    if (window.confirm(`Are you sure you want to permanently delete user "${user.name}" (${user.email})? This action cannot be undone.`)) {
+      try {
+        const res = await usersAPI.delete(user.user_id)
+        addToast(res.data?.message || `User "${user.name}" deleted successfully`, 'success')
+        fetchUsers()
+      } catch (err) {
+        const msg = err.response?.data?.error || 'Failed to delete user'
+        addToast(msg, 'error')
+      }
     }
   }
 
@@ -224,6 +238,7 @@ function UsersPage() {
             <thead>
               <tr>
                 <th>User</th>
+                <th>Team</th>
                 <th>Role</th>
                 <th>Status</th>
                 <th>Created</th>
@@ -243,6 +258,13 @@ function UsersPage() {
                         <div className="user-email">{u.email}</div>
                       </div>
                     </div>
+                  </td>
+                  <td>
+                    {u.team_id ? (
+                      <span className="badge badge-violet" style={{ fontSize: '0.72rem' }}>{u.team_id}</span>
+                    ) : (
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>—</span>
+                    )}
                   </td>
                   <td>
                     <span className={`role-badge ${u.role}`}>{u.role}</span>
@@ -266,13 +288,23 @@ function UsersPage() {
                         <HiOutlinePencil />
                       </button>
                       {u.user_id !== currentUser?.user_id && (
-                        <button
-                          className={`action-btn ${u.is_active ? 'deactivate' : 'activate'}`}
-                          title={u.is_active ? 'Deactivate user' : 'Activate user'}
-                          onClick={() => handleToggleStatus(u)}
-                        >
-                          {u.is_active ? <HiOutlineBan /> : <HiOutlineCheckCircle />}
-                        </button>
+                        <>
+                          <button
+                            className={`action-btn ${u.is_active ? 'deactivate' : 'activate'}`}
+                            title={u.is_active ? 'Deactivate user' : 'Activate user'}
+                            onClick={() => handleToggleStatus(u)}
+                          >
+                            {u.is_active ? <HiOutlineBan /> : <HiOutlineCheckCircle />}
+                          </button>
+                          <button
+                            className="action-btn deactivate"
+                            title="Delete user"
+                            onClick={() => handleDeleteUser(u)}
+                            style={{ color: 'var(--color-accent-rose)' }}
+                          >
+                            <HiOutlineTrash />
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>

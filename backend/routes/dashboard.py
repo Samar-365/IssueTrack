@@ -24,16 +24,38 @@ dashboard_bp = Blueprint('dashboard', __name__)
 def get_dashboard():
     """
     Return comprehensive dashboard data.
-    Admins & Managers see global data.
-    Employees see only data relevant to their assignments.
+    Admins see global data.
+    Managers see data for their team.
+    Employees see data for their team & assignments.
     """
     claims = get_jwt()
     role = claims.get('role')
     current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
 
     is_restricted = role == 'employee'
     base_issue_query = Issue.query
-    if is_restricted:
+
+    team_project_ids = None
+    if user_team and role in ('manager', 'employee'):
+        team_project_ids = db.session.query(Project.project_id).filter(
+            db.or_(
+                Project.team_id == user_team,
+                Project.manager_id == current_user_id,
+                Project.created_by == current_user_id
+            )
+        ).subquery()
+        if is_restricted:
+            base_issue_query = base_issue_query.filter(
+                db.or_(
+                    Issue.project_id.in_(team_project_ids),
+                    Issue.assigned_to == current_user_id
+                )
+            )
+        else:
+            base_issue_query = base_issue_query.filter(Issue.project_id.in_(team_project_ids))
+    elif is_restricted:
         base_issue_query = base_issue_query.filter_by(assigned_to=current_user_id)
 
     today = date.today()
@@ -70,8 +92,16 @@ def get_dashboard():
 
     # ---- Project Progress (FR-31) ----
     projects = []
-    if is_restricted:
-        # Get projects for employee's assigned issues
+    if role in ('manager', 'employee') and user_team:
+        project_list = Project.query.filter(
+            Project.status != 'archived',
+            db.or_(
+                Project.team_id == user_team,
+                Project.manager_id == current_user_id,
+                Project.created_by == current_user_id
+            )
+        ).order_by(Project.project_name).all()
+    elif is_restricted:
         project_ids = db.session.query(Issue.project_id).filter_by(
             assigned_to=current_user_id
         ).distinct().all()
@@ -121,24 +151,26 @@ def get_dashboard():
     # ---- Team Stats (Admins/Managers only) ----
     team_stats = None
     if not is_restricted:
-        total_users = User.query.filter_by(is_active=True).count()
-        total_projects = Project.query.filter(
-            Project.status != 'archived'
-        ).count()
-
-        # Issues created this week
         now = datetime.now(timezone.utc)
         start_of_week = now - timedelta(days=now.weekday())
         start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
-        issues_this_week = Issue.query.filter(
-            Issue.created_at >= start_of_week
-        ).count()
 
-        # Unassigned issues
-        unassigned = Issue.query.filter(
-            Issue.assigned_to.is_(None),
-            Issue.status.notin_(['resolved', 'closed']),
-        ).count()
+        if role == 'manager' and user_team:
+            total_users = User.query.filter_by(is_active=True, team_id=user_team).count()
+            total_projects = len(project_list)
+            issues_this_week = base_issue_query.filter(Issue.created_at >= start_of_week).count()
+            unassigned = base_issue_query.filter(
+                Issue.assigned_to.is_(None),
+                Issue.status.notin_(['resolved', 'closed']),
+            ).count()
+        else:
+            total_users = User.query.filter_by(is_active=True).count()
+            total_projects = Project.query.filter(Project.status != 'archived').count()
+            issues_this_week = Issue.query.filter(Issue.created_at >= start_of_week).count()
+            unassigned = Issue.query.filter(
+                Issue.assigned_to.is_(None),
+                Issue.status.notin_(['resolved', 'closed']),
+            ).count()
 
         team_stats = {
             'total_users': total_users,

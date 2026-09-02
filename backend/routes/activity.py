@@ -20,18 +20,24 @@ activity_bp = Blueprint('activity', __name__)
 def list_activity():
     """
     Return activity logs visible to the current user.
-    Admins & Managers see all logs.
+    Admins see all logs.
+    Managers see logs for their team members and projects.
     Employees see only their own activity.
     """
     claims = get_jwt()
     role = claims.get('role')
     current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
 
     query = ActivityLog.query
 
     # Employees can only see their own activity
     if role == 'employee':
         query = query.filter_by(user_id=current_user_id)
+    elif role == 'manager' and user_team:
+        team_user_ids = [u.user_id for u in User.query.filter_by(team_id=user_team).all()]
+        query = query.filter(ActivityLog.user_id.in_(team_user_ids))
 
     # ---- Filters ----
     user_id = request.args.get('user_id')
@@ -101,10 +107,15 @@ def activity_stats():
     claims = get_jwt()
     role = claims.get('role')
     current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
 
     base = ActivityLog.query
     if role == 'employee':
         base = base.filter_by(user_id=current_user_id)
+    elif role == 'manager' and user_team:
+        team_user_ids = [u.user_id for u in User.query.filter_by(team_id=user_team).all()]
+        base = base.filter(ActivityLog.user_id.in_(team_user_ids))
 
     total = base.count()
 
@@ -150,8 +161,13 @@ def activity_stats():
 def activity_users():
     """Return list of users who have activity logs (for filter dropdown)."""
     claims = get_jwt()
-    if claims.get('role') not in ('admin', 'manager'):
+    role = claims.get('role')
+    if role not in ('admin', 'manager'):
         return jsonify({'users': []}), 200
+
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
 
     # Get distinct user_ids from activity logs
     user_ids = db.session.query(ActivityLog.user_id).distinct().all()
@@ -160,7 +176,11 @@ def activity_users():
     if not user_ids:
         return jsonify({'users': []}), 200
 
-    users = User.query.filter(User.user_id.in_(user_ids)).order_by(User.name).all()
+    query = User.query.filter(User.user_id.in_(user_ids))
+    if role == 'manager' and user_team:
+        query = query.filter_by(team_id=user_team)
+
+    users = query.order_by(User.name).all()
     return jsonify({
         'users': [{'user_id': u.user_id, 'name': u.name, 'role': u.role} for u in users],
     }), 200

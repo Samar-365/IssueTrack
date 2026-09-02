@@ -62,21 +62,37 @@ def _log_activity(user_id, action, details=None, entity_id=None):
 def list_projects():
     """
     Return projects visible to the current user.
-    Admins & Managers see all projects.
-    Employees see only projects that have issues assigned to them.
+    Admins see all projects (or filter by team_id).
+    Managers & Employees see projects belonging to their team.
     """
     claims = get_jwt()
     role = claims.get('role')
     current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
 
     query = Project.query
 
-    # Employees can only see projects where they have assigned issues
-    if role == 'employee':
-        project_ids = db.session.query(Issue.project_id).filter(
-            Issue.assigned_to == current_user_id
-        ).distinct().subquery()
-        query = query.filter(Project.project_id.in_(project_ids))
+    # Scoping by role and team
+    if role in ('manager', 'employee'):
+        if user_team:
+            query = query.filter(
+                db.or_(
+                    Project.team_id == user_team,
+                    Project.manager_id == current_user_id,
+                    Project.created_by == current_user_id
+                )
+            )
+        else:
+            # Fallback if no team assigned: employees see assigned issues projects
+            project_ids = db.session.query(Issue.project_id).filter(
+                Issue.assigned_to == current_user_id
+            ).distinct().subquery()
+            query = query.filter(Project.project_id.in_(project_ids))
+    elif role == 'admin':
+        team_filter = request.args.get('team_id')
+        if team_filter:
+            query = query.filter_by(team_id=team_filter.strip())
 
     # Optional filters
     status = request.args.get('status')
@@ -117,15 +133,22 @@ def get_project(project_id):
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    # Employees can only view projects they are assigned to
     claims = get_jwt()
-    if claims.get('role') == 'employee':
-        current_user_id = int(get_jwt_identity())
-        assigned = Issue.query.filter_by(
+    role = claims.get('role')
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
+    # Team & role access checks
+    if role in ('manager', 'employee'):
+        is_same_team = (project.team_id and project.team_id == user_team)
+        is_manager_or_creator = (project.manager_id == current_user_id or project.created_by == current_user_id)
+        is_assigned = Issue.query.filter_by(
             project_id=project_id, assigned_to=current_user_id
-        ).first()
-        if not assigned:
-            return jsonify({'error': 'Access denied'}), 403
+        ).first() is not None
+
+        if not (is_same_team or is_manager_or_creator or is_assigned):
+            return jsonify({'error': 'Access denied to this project'}), 403
 
     return jsonify({'project': project.to_dict()}), 200
 
@@ -134,9 +157,9 @@ def get_project(project_id):
 # POST /api/projects — Create a new project (FR-8)
 # --------------------------------------------------
 @projects_bp.route('', methods=['POST'])
-@admin_required
+@manager_or_admin_required
 def create_project():
-    """Create a new project. Admin only."""
+    """Create a new project. Managers & Admins."""
     data = request.get_json()
 
     # --- Validate required fields ---
@@ -176,7 +199,13 @@ def create_project():
     if existing:
         return jsonify({'error': 'A project with this name already exists'}), 409
 
+    claims = get_jwt()
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    role = claims.get('role')
+
     # Validate manager if provided
+    manager = None
     if manager_id:
         manager = User.query.get(manager_id)
         if not manager:
@@ -184,7 +213,16 @@ def create_project():
         if manager.role not in ('admin', 'manager'):
             return jsonify({'error': 'Selected user is not a manager or admin'}), 400
 
-    admin_id = int(get_jwt_identity())
+    # Determine team_id
+    team_id = data.get('team_id')
+    if role == 'manager':
+        team_id = current_user.team_id if current_user else team_id
+        if not manager_id:
+            manager_id = current_user_id
+    elif role == 'admin' and not team_id and manager:
+        team_id = manager.team_id
+
+    github_repo = (data.get('github_repo') or '').strip() or None
 
     project = Project(
         project_name=name,
@@ -192,15 +230,17 @@ def create_project():
         start_date=start_date,
         end_date=end_date,
         status='active',
-        created_by=admin_id,
+        created_by=current_user_id,
         manager_id=manager_id,
+        team_id=team_id,
+        github_repo=github_repo,
     )
 
     db.session.add(project)
     db.session.flush()  # get project_id before commit
 
-    _log_activity(admin_id, 'project_created',
-                  f'Created project "{name}"',
+    _log_activity(current_user_id, 'project_created',
+                  f'Created project "{name}" (Team: {team_id or "General"})',
                   entity_id=project.project_id)
 
     db.session.commit()
@@ -215,12 +255,24 @@ def create_project():
 # PUT /api/projects/<id> — Update project info (FR-9)
 # --------------------------------------------------
 @projects_bp.route('/<int:project_id>', methods=['PUT'])
-@admin_required
+@manager_or_admin_required
 def update_project(project_id):
-    """Update project information. Admin only."""
+    """Update project information. Managers & Admins."""
     project = Project.query.get(project_id)
     if not project:
         return jsonify({'error': 'Project not found'}), 404
+
+    claims = get_jwt()
+    role = claims.get('role')
+    user_id = int(get_jwt_identity())
+    current_user = User.query.get(user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
+    if role == 'manager':
+        is_same_team = (project.team_id and project.team_id == user_team)
+        is_manager_or_creator = (project.manager_id == user_id or project.created_by == user_id)
+        if not (is_same_team or is_manager_or_creator):
+            return jsonify({'error': 'Access denied to update this project'}), 403
 
     data = request.get_json()
     changes = []
@@ -287,11 +339,24 @@ def update_project(project_id):
             changes.append(f'manager updated')
             project.manager_id = new_manager_id
 
+    # --- Team ID (Admins only or when updating) ---
+    if 'team_id' in data and role == 'admin':
+        new_team = data.get('team_id')
+        if new_team != project.team_id:
+            changes.append(f'team_id: {project.team_id} → {new_team}')
+            project.team_id = new_team
+
+    # --- GitHub Repo ---
+    if 'github_repo' in data:
+        new_repo = (data.get('github_repo') or '').strip() or None
+        if new_repo != project.github_repo:
+            changes.append(f'github_repo: {project.github_repo} → {new_repo}')
+            project.github_repo = new_repo
+
     if not changes:
         return jsonify({'message': 'No changes detected', 'project': project.to_dict()}), 200
 
-    admin_id = int(get_jwt_identity())
-    _log_activity(admin_id, 'project_updated',
+    _log_activity(user_id, 'project_updated',
                   f'Updated project #{project_id}: {"; ".join(changes)}',
                   entity_id=project_id)
 
@@ -307,20 +372,31 @@ def update_project(project_id):
 # PATCH /api/projects/<id>/archive — Archive / Restore (FR-10)
 # --------------------------------------------------
 @projects_bp.route('/<int:project_id>/archive', methods=['PATCH'])
-@admin_required
+@manager_or_admin_required
 def toggle_project_archive(project_id):
-    """Archive or restore a project. Admin only."""
+    """Archive or restore a project. Managers & Admins."""
     project = Project.query.get(project_id)
     if not project:
         return jsonify({'error': 'Project not found'}), 404
+
+    claims = get_jwt()
+    role = claims.get('role')
+    user_id = int(get_jwt_identity())
+    current_user = User.query.get(user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
+    if role == 'manager':
+        is_same_team = (project.team_id and project.team_id == user_team)
+        is_manager_or_creator = (project.manager_id == user_id or project.created_by == user_id)
+        if not (is_same_team or is_manager_or_creator):
+            return jsonify({'error': 'Access denied to archive this project'}), 403
 
     # Toggle status
     new_status = 'archived' if project.status == 'active' else 'active'
     project.status = new_status
 
-    admin_id = int(get_jwt_identity())
     action = 'project_archived' if new_status == 'archived' else 'project_restored'
-    _log_activity(admin_id, action,
+    _log_activity(user_id, action,
                   f'{"Archived" if new_status == "archived" else "Restored"} project "{project.project_name}"',
                   entity_id=project_id)
 
@@ -344,9 +420,83 @@ def get_project_members(project_id):
     if not project:
         return jsonify({'error': 'Project not found'}), 404
 
-    # Return all active users (they can be assigned to issues)
-    users = User.query.filter_by(is_active=True).order_by(User.name).all()
+    # If project belongs to a team, return active members of that team
+    if project.team_id:
+        users = User.query.filter(
+            User.is_active == True,
+            User.team_id == project.team_id
+        ).order_by(User.name).all()
+    else:
+        users = User.query.filter_by(is_active=True).order_by(User.name).all()
 
     return jsonify({
         'members': [u.to_dict() for u in users],
+    }), 200
+
+
+# --------------------------------------------------
+# GET /api/projects/<id>/webhook-config — Get GitHub Webhook Config
+# --------------------------------------------------
+@projects_bp.route('/<int:project_id>/webhook-config', methods=['GET'])
+@manager_or_admin_required
+def get_webhook_config(project_id):
+    """Return webhook payload URL, HMAC secret, and configuration guides."""
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    # Ensure token & secret exist
+    if not project.webhook_token or not project.webhook_secret:
+        import secrets
+        if not project.webhook_token:
+            project.webhook_token = f"proj_{secrets.token_hex(16)}"
+        if not project.webhook_secret:
+            project.webhook_secret = secrets.token_hex(32)
+        db.session.commit()
+
+    base_url = request.host_url.rstrip('/')
+    webhook_url = f"{base_url}/api/webhooks/github/{project.webhook_token}"
+
+    return jsonify({
+        'project_id': project.project_id,
+        'project_name': project.project_name,
+        'github_repo': project.github_repo,
+        'webhook_token': project.webhook_token,
+        'webhook_secret': project.webhook_secret,
+        'webhook_url': webhook_url,
+        'instructions': {
+            'payload_url': webhook_url,
+            'content_type': 'application/json',
+            'secret': project.webhook_secret,
+            'events': ['push', 'pull_request']
+        }
+    }), 200
+
+
+# --------------------------------------------------
+# POST /api/projects/<id>/rotate-webhook-secret — Rotate HMAC Secret
+# --------------------------------------------------
+@projects_bp.route('/<int:project_id>/rotate-webhook-secret', methods=['POST'])
+@manager_or_admin_required
+def rotate_webhook_secret(project_id):
+    """Regenerate a new cryptographic webhook HMAC secret for the project."""
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    new_secret = project.rotate_webhook_secret()
+    user_id = int(get_jwt_identity())
+
+    _log_activity(
+        user_id=user_id,
+        action='webhook_secret_rotated',
+        details=f'Rotated GitHub webhook secret for project "{project.project_name}"',
+        entity_id=project_id,
+    )
+
+    db.session.commit()
+
+    return jsonify({
+        'message': f'Webhook secret for project "{project.project_name}" rotated successfully',
+        'webhook_secret': new_secret,
     }), 200

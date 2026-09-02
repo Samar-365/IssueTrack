@@ -60,13 +60,26 @@ VALID_ROLES = ('admin', 'manager', 'employee')
 @users_bp.route('', methods=['GET'])
 @manager_or_admin_required
 def list_users():
-    """Return all users with optional role and status filters."""
+    """Return all users with optional role, status, and team_id filters."""
+    claims = get_jwt()
+    role = claims.get('role')
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
     query = User.query
 
-    # Optional filters
-    role = request.args.get('role')
-    if role and role in VALID_ROLES:
-        query = query.filter_by(role=role)
+    # Managers only see users within their own team
+    if role == 'manager':
+        query = query.filter_by(team_id=user_team)
+    elif role == 'admin':
+        team_filter = request.args.get('team_id')
+        if team_filter:
+            query = query.filter_by(team_id=team_filter.strip())
+
+    role_filter = request.args.get('role')
+    if role_filter and role_filter in VALID_ROLES:
+        query = query.filter_by(role=role_filter)
 
     is_active = request.args.get('is_active')
     if is_active is not None:
@@ -79,6 +92,7 @@ def list_users():
             db.or_(
                 User.name.ilike(pattern),
                 User.email.ilike(pattern),
+                User.team_id.ilike(pattern),
             )
         )
 
@@ -113,6 +127,7 @@ def create_user():
     email = (data.get('email') or '').strip()
     password = data.get('password', '')
     role = (data.get('role') or 'employee').strip().lower()
+    team_id = (data.get('team_id') or '').strip() or None
 
     errors = []
     if not name:
@@ -136,6 +151,7 @@ def create_user():
         name=name,
         email=email,
         role=role,
+        team_id=team_id,
         is_active=True,
     )
     user.set_password(password)
@@ -146,7 +162,7 @@ def create_user():
     # Log activity
     admin_id = int(get_jwt_identity())
     _log_activity(admin_id, 'user_created',
-                  f'Created user "{name}" ({email}) with role {role}',
+                  f'Created user "{name}" ({email}) with role {role} (Team: {team_id or "General"})',
                   entity_id=user.user_id)
 
     db.session.commit()
@@ -163,7 +179,7 @@ def create_user():
 @users_bp.route('/<int:user_id>', methods=['PUT'])
 @admin_required
 def update_user(user_id):
-    """Update a user's name, email, and/or role. Admin only."""
+    """Update a user's name, email, role, and/or team_id. Admin only."""
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -193,6 +209,13 @@ def update_user(user_id):
             return jsonify({'error': f'Role must be one of: {", ".join(VALID_ROLES)}'}), 400
         changes.append(f'role: {user.role} → {role}')
         user.role = role
+
+    # --- Team ID ---
+    if 'team_id' in data:
+        new_team = (data.get('team_id') or '').strip() or None
+        if new_team != user.team_id:
+            changes.append(f'team_id: "{user.team_id}" → "{new_team}"')
+            user.team_id = new_team
 
     # --- Password (optional) ---
     password = data.get('password', '')
@@ -254,3 +277,46 @@ def toggle_user_status(user_id):
         'message': f'User "{user.name}" {status_text} successfully',
         'user': user.to_dict(),
     }), 200
+
+
+# --------------------------------------------------
+# DELETE /api/users/<id> — Delete user permanently
+# --------------------------------------------------
+@users_bp.route('/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_user(user_id):
+    """Permanently delete a user. Admin only."""
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    admin_id = int(get_jwt_identity())
+    if user_id == admin_id:
+        return jsonify({'error': 'You cannot delete your own account'}), 400
+
+    from models.issue import Issue
+    from models.project import Project
+    from models.comment import Comment
+    from models.notification import Notification
+
+    # Reassign created_by to the deleting admin so projects/issues aren't orphaned
+    Project.query.filter_by(created_by=user_id).update({'created_by': admin_id})
+    Project.query.filter_by(manager_id=user_id).update({'manager_id': None})
+    Issue.query.filter_by(created_by=user_id).update({'created_by': admin_id})
+    Issue.query.filter_by(assigned_to=user_id).update({'assigned_to': None})
+
+    # Clean up notifications and comments for this user
+    Notification.query.filter_by(user_id=user_id).delete()
+    Comment.query.filter_by(user_id=user_id).delete()
+    ActivityLog.query.filter_by(user_id=user_id).delete()
+
+    user_name = user.name
+    user_email = user.email
+
+    db.session.delete(user)
+    _log_activity(admin_id, 'user_deleted',
+                  f'Deleted user "{user_name}" ({user_email})',
+                  entity_id=user_id)
+    db.session.commit()
+
+    return jsonify({'message': f'User "{user_name}" deleted successfully'}), 200

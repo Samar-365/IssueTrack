@@ -1,0 +1,151 @@
+================================================================================
+IMPLEMENTATION PLAN: USER SIGN UP FEATURE & PER-PROJECT GITHUB WEBHOOKS
+================================================================================
+
+OVERVIEW:
+This plan adds a complete full-stack User Sign-Up (Registration) system and
+per-project auto-generated GitHub webhook tokens and HMAC secrets to IssueTrack.
+
+--------------------------------------------------------------------------------
+SUBMODULE 0: USER SIGN UP & AUTHENTICATION (BACKEND & FRONTEND)
+--------------------------------------------------------------------------------
+Objective:
+Enable new users to register an account directly from the web interface.
+
+Key Changes:
+1. Backend (backend/routes/auth.py):
+   - Add endpoint: POST /api/auth/register
+   - Accepts: name, email, password, role (default: "employee")
+   - Validation:
+     * Non-empty name and password (min 6 characters)
+     * Valid email regex format
+     * Uniqueness check (returns 409 if email already exists)
+   - Securely hashes password via generate_password_hash()
+   - Records user creation in ActivityLog
+   - Generates and returns JWT access token for immediate automatic login
+
+2. Frontend Client (frontend/src/services/api.js):
+   - Add authAPI.register({ name, email, password, role })
+
+3. Frontend Context (frontend/src/context/AuthContext.jsx):
+   - Add register(name, email, password, role) method to update global auth state
+
+4. Frontend UI (frontend/src/pages/RegisterPage.jsx & RegisterPage.css):
+   - Build a modern glassmorphic registration form matching the theme:
+     * Full Name input with user icon
+     * Email input with mail icon
+     * Password & Confirm Password with live Show/Hide toggles
+     * Role selection dropdown (Employee / Manager)
+     * Validation error alerts
+     * "Already have an account? Sign in" navigation link
+   - Update LoginPage.jsx:
+     * Add "Don't have an account? Sign up" link navigating to /register
+   - Update App.jsx:
+     * Add public route /register
+
+--------------------------------------------------------------------------------
+SUBMODULE 1: DATABASE MODEL & TOKEN GENERATION
+--------------------------------------------------------------------------------
+Objective:
+Extend the Project database model with dedicated webhook routing tokens and secrets.
+
+Key Changes:
+1. File: backend/models/project.py
+   - Add column: webhook_token (String 64, unique=True, indexed)
+     Format: "proj_" + 16-byte random hex (e.g., "proj_8f3a9b1c...")
+   - Add column: webhook_secret (String 64, nullable=True)
+     Format: 32-byte cryptographically secure hex (secrets.token_hex(32))
+   - Add column: github_repo (String 200, nullable=True)
+     Format: "owner/repo" (e.g., "Samar-365/IssueTrack")
+   - Auto-generate webhook_token and webhook_secret on project initialization.
+   - Update to_dict() to return webhook_token, webhook_secret, and github_repo.
+
+2. File: backend/db_init.py
+   - Ensure existing/seeded sample projects are automatically assigned valid
+     webhook tokens and secrets on startup.
+
+--------------------------------------------------------------------------------
+SUBMODULE 2: BACKEND API ENDPOINTS & SECRET MANAGEMENT
+--------------------------------------------------------------------------------
+Objective:
+Provide REST API endpoints to manage webhook configuration and secret rotation.
+
+Key Changes:
+1. File: backend/routes/projects.py
+   - Update POST /api/projects & PUT /api/projects/<id>:
+     Accept optional "github_repo" parameter.
+   - Add POST /api/projects/<int:project_id>/rotate-webhook-secret:
+     Regenerates a new 32-byte secure webhook_secret and saves it to the database.
+   - Add GET /api/projects/<int:project_id>/webhook-config:
+     Returns:
+       * webhook_url: dynamically constructed URL (/api/webhooks/github/<token>)
+       * webhook_secret: current secret
+       * github_repo: linked repo name
+       * setup_guide: concise setup instructions
+
+--------------------------------------------------------------------------------
+SUBMODULE 3: WEBHOOK INGRESS & PROJECT-SCOPED VERIFICATION
+--------------------------------------------------------------------------------
+Objective:
+Validate incoming GitHub webhooks against the target project's secret and scope
+issue updates strictly to that project.
+
+Key Changes:
+1. File: backend/routes/webhooks.py
+   - Add route: POST /api/webhooks/github/<webhook_token>
+   - Lookup Project by webhook_token in O(1) time. Return 404 if not found.
+   - Extract raw payload and X-Hub-Signature-256 header.
+   - Verify HMAC-SHA256 signature using project.webhook_secret.
+   - Filter/scope issue references to only issues belonging to this project_id
+     (prevents cross-project state pollution).
+   - Retain legacy /api/webhooks/github as a fallback using global config secret.
+
+--------------------------------------------------------------------------------
+SUBMODULE 4: FRONTEND UI - GITHUB INTEGRATION MODAL & CONTROLS
+--------------------------------------------------------------------------------
+Objective:
+Provide an intuitive, modern UI on the Projects page to view and manage webhooks.
+
+Key Changes:
+1. File: frontend/src/services/api.js
+   - Add getProjectWebhookConfig(projectId)
+   - Add rotateProjectWebhookSecret(projectId)
+
+2. File: frontend/src/pages/ProjectsPage.jsx & ProjectsPage.css
+   - Add a "GitHub Webhook" action button / icon on each Project card.
+   - Build a GitHub Webhook Settings Modal:
+     * Webhook Payload URL with 1-click Copy button.
+     * Secret Token with Show/Hide toggle and 1-click Copy button.
+     * "Regenerate Secret" button with confirmation prompt.
+     * GitHub Repo input / display.
+     * Step-by-step checklist of where to paste these in GitHub Settings.
+
+--------------------------------------------------------------------------------
+SUBMODULE 5: TESTING & WEBHOOK SIMULATOR UPDATES
+--------------------------------------------------------------------------------
+Objective:
+Verify end-to-end functionality, security boundaries, and update CLI simulation tool.
+
+Key Changes:
+1. File: backend/test_app.py
+   - Test user registration endpoint (success, duplicate email, short password).
+   - Test auto-token generation on project creation.
+   - Test secret rotation endpoint.
+   - Test webhook acceptance with valid project-specific signature.
+   - Test webhook rejection with invalid signature or unknown project token.
+   - Test project-level issue isolation (Issue #1 in Project A is unaffected by
+     webhooks sent to Project B).
+
+2. File: backend/scripts/simulate_webhook.py
+   - Update CLI to accept --project-token and --secret arguments for direct local
+     testing.
+
+================================================================================
+VERIFICATION CHECKLIST:
+- [ ] Automated unit test suite passes: `python -m unittest test_app.py`
+- [ ] Test Sign-Up at `/register` -> auto-logs in and lands on `/dashboard`.
+- [ ] Test switching between `/login` and `/register`.
+- [ ] Create project in UI -> Verify unique Webhook URL & Secret generated.
+- [ ] Rotate secret -> Verify old secret no longer validates, new secret works.
+- [ ] Push commit with `Fixes #<id>` -> Verify issue in target project resolves.
+================================================================================

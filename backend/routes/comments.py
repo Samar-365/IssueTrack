@@ -31,10 +31,26 @@ def _log_activity(user_id, action, details=None, entity_type='comment', entity_i
 def _can_access_issue(issue, claims, current_user_id):
     """Check if the current user can access the given issue."""
     role = claims.get('role')
-    if role in ('admin', 'manager'):
+    if role == 'admin':
         return True
-    # Employees can only access issues assigned to them
-    return issue.assigned_to == current_user_id
+
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
+    from models.project import Project
+    project = Project.query.get(issue.project_id)
+    if not project:
+        return False
+
+    # Must match project team if team_id exists
+    if project.team_id and user_team and project.team_id != user_team:
+        return False
+
+    if role == 'manager':
+        return True
+
+    # Employees can access if they are in the project's team or the issue is assigned to them
+    return (project.team_id and project.team_id == user_team) or issue.assigned_to == current_user_id
 
 
 # --------------------------------------------------

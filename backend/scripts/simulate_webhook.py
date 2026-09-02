@@ -141,7 +141,8 @@ def build_pr_payload(issue_id: int, pr_number: int, merged: bool, author_name: s
 
 def main():
     parser = argparse.ArgumentParser(description="Simulate GitHub Webhooks for IssueTrack")
-    parser.add_argument('--url', default='http://127.0.0.1:5005/api/webhooks/github', help='Target Webhook URL')
+    parser.add_argument('--url', default='', help='Target Webhook URL (overrides --project-token)')
+    parser.add_argument('--project-token', default='', help='Project-specific webhook token (e.g. proj_8f3a9b...)')
     parser.add_argument('--secret', default=os.environ.get('GITHUB_WEBHOOK_SECRET', ''), help='Webhook HMAC Secret')
     parser.add_argument('--type', choices=['push', 'pull_request', 'ping'], default='push', help='Event type')
     parser.add_argument('--issue', '-i', type=int, default=1, help='Referenced Issue ID (e.g. 1)')
@@ -155,10 +156,18 @@ def main():
 
     args = parser.parse_args()
 
+    # Determine URL
+    target_url = args.url
+    if not target_url:
+        if args.project_token:
+            target_url = f'http://127.0.0.1:5005/api/webhooks/github/{args.project_token}'
+        else:
+            target_url = 'http://127.0.0.1:5005/api/webhooks/github'
+
     print(f"\n{'='*60}")
     print(f">> IssueTrack GitHub Webhook Simulator")
     print(f"{'='*60}")
-    print(f"Target URL   : {args.url}")
+    print(f"Target URL   : {target_url}")
     print(f"Event Type   : {args.type}")
     print(f"Target Issue : #{args.issue}")
     print(f"Action Intent: {args.action}")

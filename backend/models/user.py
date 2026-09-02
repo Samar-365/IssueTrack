@@ -12,6 +12,7 @@ class User(db.Model):
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='employee')  # admin, manager, employee
+    team_id = db.Column(db.String(50), nullable=True, index=True)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -33,6 +34,7 @@ class User(db.Model):
             'name': self.name,
             'email': self.email,
             'role': self.role,
+            'team_id': self.team_id,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }

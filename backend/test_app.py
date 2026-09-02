@@ -28,6 +28,7 @@ class IssueTrackerTestCase(unittest.TestCase):
             name='Test Admin',
             email='admin@test.com',
             role='admin',
+            team_id='TEAM-ADMIN',
             is_active=True
         )
         self.admin_user.set_password('AdminPass123')
@@ -36,6 +37,7 @@ class IssueTrackerTestCase(unittest.TestCase):
             name='Test Manager',
             email='manager@test.com',
             role='manager',
+            team_id='TEAM-ALPHA',
             is_active=True
         )
         self.manager_user.set_password('ManagerPass123')
@@ -44,6 +46,7 @@ class IssueTrackerTestCase(unittest.TestCase):
             name='Test Employee',
             email='employee@test.com',
             role='employee',
+            team_id='TEAM-ALPHA',
             is_active=True
         )
         self.employee_user.set_password('EmpPass123')
@@ -66,6 +69,49 @@ class IssueTrackerTestCase(unittest.TestCase):
         self.app_context.pop()
 
     # 1. User Authentication Module Tests
+    def test_auth_register_success(self):
+        res = self.client.post('/api/auth/register', json={
+            'name': 'Fresh User',
+            'email': 'fresh@test.com',
+            'password': 'SecurePass123',
+            'role': 'employee',
+            'team_id': 'TEAM-ALPHA'
+        })
+        self.assertEqual(res.status_code, 201)
+        data = json.loads(res.data)
+        self.assertIn('access_token', data)
+        self.assertEqual(data['user']['email'], 'fresh@test.com')
+        self.assertEqual(data['user']['team_id'], 'TEAM-ALPHA')
+
+    def test_auth_register_requires_team_id(self):
+        res = self.client.post('/api/auth/register', json={
+            'name': 'No Team User',
+            'email': 'noteam@test.com',
+            'password': 'SecurePass123',
+            'role': 'employee'
+        })
+        self.assertEqual(res.status_code, 400)
+        data = json.loads(res.data)
+        self.assertIn('Team ID is required', data['error'])
+
+    def test_auth_register_duplicate_email(self):
+        res = self.client.post('/api/auth/register', json={
+            'name': 'Duplicate User',
+            'email': 'admin@test.com',
+            'password': 'SecurePass123',
+            'team_id': 'TEAM-ALPHA'
+        })
+        self.assertEqual(res.status_code, 409)
+
+    def test_auth_register_short_password(self):
+        res = self.client.post('/api/auth/register', json={
+            'name': 'Short Pass',
+            'email': 'short@test.com',
+            'password': '123',
+            'team_id': 'TEAM-ALPHA'
+        })
+        self.assertEqual(res.status_code, 400)
+
     def test_auth_login_success(self):
         res = self.client.post('/api/auth/login', json={
             'email': 'admin@test.com',
@@ -89,23 +135,115 @@ class IssueTrackerTestCase(unittest.TestCase):
         data = json.loads(res.data)
         self.assertEqual(data['user']['email'], 'admin@test.com')
 
+    def test_team_login_success(self):
+        res = self.client.post('/api/auth/team-login', json={
+            'team_id': 'TEAM-ALPHA',
+            'name': 'Dev Direct'
+        })
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data)
+        self.assertIn('access_token', data)
+        self.assertEqual(data['user']['role'], 'employee')
+        self.assertEqual(data['user']['team_id'], 'TEAM-ALPHA')
+        self.assertEqual(data['user']['name'], 'Dev Direct')
+
+    def test_team_login_invalid_team(self):
+        res = self.client.post('/api/auth/team-login', json={
+            'team_id': 'NONEXISTENT-TEAM-999',
+            'name': 'Random Dev'
+        })
+        self.assertEqual(res.status_code, 404)
+        data = json.loads(res.data)
+        self.assertIn('does not exist', data['error'])
+
     # 2. User Management Module Tests
     def test_user_creation(self):
         res = self.client.post('/api/users', headers=self.admin_headers, json={
             'name': 'New Dev',
             'email': 'newdev@test.com',
             'password': 'Password123',
-            'role': 'employee'
+            'role': 'employee',
+            'team_id': 'TEAM-ALPHA'
         })
         self.assertEqual(res.status_code, 201)
         data = json.loads(res.data)
         self.assertEqual(data['user']['name'], 'New Dev')
+        self.assertEqual(data['user']['team_id'], 'TEAM-ALPHA')
 
     def test_user_list(self):
         res = self.client.get('/api/users', headers=self.admin_headers)
         self.assertEqual(res.status_code, 200)
         data = json.loads(res.data)
         self.assertGreaterEqual(len(data['users']), 3)
+
+    def test_user_delete(self):
+        # Create user
+        c_res = self.client.post('/api/users', headers=self.admin_headers, json={
+            'name': 'User To Delete',
+            'email': 'delete_me@test.com',
+            'password': 'Password123',
+            'role': 'employee',
+            'team_id': 'TEAM-ALPHA'
+        })
+        user_id = json.loads(c_res.data)['user']['user_id']
+
+        # Delete user
+        d_res = self.client.delete(f'/api/users/{user_id}', headers=self.admin_headers)
+        self.assertEqual(d_res.status_code, 200)
+
+        # Confirm deleted
+        g_res = self.client.get(f'/api/users/{user_id}', headers=self.admin_headers)
+        self.assertEqual(g_res.status_code, 404)
+
+        # Confirm admin cannot delete themselves
+        self_res = self.client.delete(f'/api/users/{self.admin_user.user_id}', headers=self.admin_headers)
+        self.assertEqual(self_res.status_code, 400)
+
+    def test_team_isolation(self):
+        # Register Manager for Team BETA
+        m_res = self.client.post('/api/auth/register', json={
+            'name': 'Beta Manager',
+            'email': 'beta_mgr@test.com',
+            'password': 'Password123',
+            'role': 'manager',
+            'team_id': 'TEAM-BETA'
+        })
+        beta_mgr_token = json.loads(m_res.data)['access_token']
+        beta_headers = {'Authorization': f'Bearer {beta_mgr_token}'}
+
+        # Beta manager creates a project
+        p_res = self.client.post('/api/projects', headers=beta_headers, json={
+            'project_name': 'Beta Secret Project'
+        })
+        self.assertEqual(p_res.status_code, 201)
+        beta_pid = json.loads(p_res.data)['project']['project_id']
+
+        # Alpha manager login
+        alpha_login = self.client.post('/api/auth/login', json={
+            'email': 'manager@test.com',
+            'password': 'ManagerPass123'
+        })
+        alpha_token = json.loads(alpha_login.data)['access_token']
+        alpha_headers = {'Authorization': f'Bearer {alpha_token}'}
+
+        # Alpha manager cannot see Beta project in listing
+        alpha_projects_res = self.client.get('/api/projects', headers=alpha_headers)
+        alpha_pids = [p['project_id'] for p in json.loads(alpha_projects_res.data)['projects']]
+        self.assertNotIn(beta_pid, alpha_pids)
+
+        # Alpha manager cannot access Beta project details (403)
+        alpha_get_res = self.client.get(f'/api/projects/{beta_pid}', headers=alpha_headers)
+        self.assertEqual(alpha_get_res.status_code, 403)
+
+        # Alpha employee cannot access Beta project details (403)
+        emp_login = self.client.post('/api/auth/login', json={
+            'email': 'employee@test.com',
+            'password': 'EmpPass123'
+        })
+        emp_token = json.loads(emp_login.data)['access_token']
+        emp_headers = {'Authorization': f'Bearer {emp_token}'}
+        emp_get_res = self.client.get(f'/api/projects/{beta_pid}', headers=emp_headers)
+        self.assertEqual(emp_get_res.status_code, 403)
 
     # 3. Project Management Module Tests
     def test_project_crud(self):
@@ -377,6 +515,86 @@ class GitHubWebhooksTestCase(unittest.TestCase):
         self.assertEqual(stats_res.status_code, 200)
         stats_data = stats_res.get_json()
         self.assertEqual(stats_data['stats']['total_events'], 1)
+
+    def test_project_webhook_token_autogen_and_config(self):
+        """Test Project auto-generates webhook token and exposes webhook-config."""
+        res = self.client.get(
+            f'/api/projects/{self.project.project_id}/webhook-config',
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn('webhook_token', data)
+        self.assertIn('webhook_secret', data)
+        self.assertTrue(data['webhook_url'].endswith(f'/api/webhooks/github/{data["webhook_token"]}'))
+
+    def test_project_webhook_secret_rotation(self):
+        """Test rotating project webhook secret."""
+        old_secret = self.project.webhook_secret
+        res = self.client.post(
+            f'/api/projects/{self.project.project_id}/rotate-webhook-secret',
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        self.assertEqual(res.status_code, 200)
+        new_secret = res.get_json()['webhook_secret']
+        self.assertNotEqual(old_secret, new_secret)
+
+    def test_project_dedicated_webhook_endpoint(self):
+        """Test sending webhook to /api/webhooks/github/<token> with project secret."""
+        issue_id = self.issue.issue_id
+        token = self.project.webhook_token
+        secret = self.project.webhook_secret
+
+        payload = json.dumps({
+            'ref': 'refs/heads/main',
+            'commits': [{
+                'id': '99887766554433221100aabbccddeeff00112233',
+                'message': f'Resolved bug (Fixes #{issue_id})',
+                'url': 'https://github.com/Samar-365/IssueTrack/commit/9988776',
+                'author': {'name': 'Sam Dev', 'email': 'sam@dev.io'},
+                'timestamp': '2026-09-01T22:00:00Z'
+            }]
+        }).encode('utf-8')
+        sig = self._sign_payload(payload, secret=secret)
+
+        res = self.client.post(
+            f'/api/webhooks/github/{token}',
+            data=payload,
+            headers={'Content-Type': 'application/json', 'X-GitHub-Event': 'push', 'X-Hub-Signature-256': sig}
+        )
+        self.assertEqual(res.status_code, 200)
+        updated_issue = Issue.query.get(issue_id)
+        self.assertEqual(updated_issue.status, 'resolved')
+
+    def test_project_webhook_isolation(self):
+        """Test webhook sent to Project 2 does NOT update issue in Project 1."""
+        # Create Project 2 with its own issue
+        proj2 = Project(project_name='Project 2', created_by=self.admin.user_id)
+        db.session.add(proj2)
+        db.session.commit()
+
+        # Webhook targeted at Project 2 referencing issue_id of Project 1
+        payload = json.dumps({
+            'ref': 'refs/heads/main',
+            'commits': [{
+                'id': '11223344556677889900aabbccddeeff00112233',
+                'message': f'Fixes #{self.issue.issue_id}',
+                'url': 'https://github.com/Samar-365/IssueTrack/commit/1122334',
+                'author': {'name': 'Sam Dev', 'email': 'sam@dev.io'},
+                'timestamp': '2026-09-01T22:00:00Z'
+            }]
+        }).encode('utf-8')
+        sig = self._sign_payload(payload, secret=proj2.webhook_secret)
+
+        res = self.client.post(
+            f'/api/webhooks/github/{proj2.webhook_token}',
+            data=payload,
+            headers={'Content-Type': 'application/json', 'X-GitHub-Event': 'push', 'X-Hub-Signature-256': sig}
+        )
+        self.assertEqual(res.status_code, 200)
+        # Issue in Project 1 should remain 'open' because it doesn't belong to Project 2
+        issue1 = Issue.query.get(self.issue.issue_id)
+        self.assertEqual(issue1.status, 'open')
 
 
 if __name__ == '__main__':

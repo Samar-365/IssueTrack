@@ -8,7 +8,11 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from models import db
 from models.issue import Issue
+from models.project import Project
 from models.github_event import GitHubEvent
+from models.user import User
+from models.activity_log import ActivityLog
+from models.notification import Notification
 from services.webhook_security import verify_github_signature
 from services.github_parser import parse_push_payload, parse_pull_request_payload
 from services.github_workflow import apply_github_workflow_transition
@@ -16,18 +20,20 @@ from services.github_workflow import apply_github_workflow_transition
 webhooks_bp = Blueprint('webhooks', __name__)
 
 
-# --------------------------------------------------
-# POST /api/webhooks/github — Webhook Receiver
-# --------------------------------------------------
-@webhooks_bp.route('/github', methods=['POST'])
-def receive_github_webhook():
+def _handle_webhook_payload(project=None):
     """
-    Main webhook receiver endpoint for GitHub events.
-    Verifies HMAC-SHA256 signature and processes push and pull_request events.
+    Common handler for processing incoming GitHub webhook events.
+    Verifies HMAC-SHA256 signature and applies workflow transitions.
+    If project is provided, issue lookups are strictly scoped to project.project_id.
     """
     raw_payload = request.get_data()
     signature_header = request.headers.get('X-Hub-Signature-256') or request.headers.get('X-Hub-Signature')
-    secret = current_app.config.get('GITHUB_WEBHOOK_SECRET', '')
+
+    # Determine HMAC secret
+    if project:
+        secret = project.webhook_secret or ''
+    else:
+        secret = current_app.config.get('GITHUB_WEBHOOK_SECRET', '')
 
     # 1. Verify HMAC Signature
     is_valid, reason = verify_github_signature(raw_payload, signature_header, secret)
@@ -48,6 +54,7 @@ def receive_github_webhook():
         return jsonify({
             'status': 'ok',
             'message': 'GitHub webhook connection verified successfully',
+            'project': project.project_name if project else 'Global',
             'hook_id': hook_id,
             'zen': zen
         }), 200
@@ -83,8 +90,12 @@ def receive_github_webhook():
             issue_id = ref['issue_id']
             intent = ref['intent']
 
-            # Lookup issue
-            issue = db.session.get(Issue, issue_id) if hasattr(db.session, 'get') else Issue.query.get(issue_id)
+            # Lookup issue — scoped to project if project webhook is used
+            if project:
+                issue = Issue.query.filter_by(issue_id=issue_id, project_id=project.project_id).first()
+            else:
+                issue = db.session.get(Issue, issue_id) if hasattr(db.session, 'get') else Issue.query.get(issue_id)
+
             if not issue:
                 continue
 
@@ -123,12 +134,7 @@ def receive_github_webhook():
             )
             db.session.add(gh_event)
 
-            # --- Submodule 7: Audit Logging & Assignee Notification ---
-            from models.user import User
-            from models.activity_log import ActivityLog
-            from models.notification import Notification
-
-            # Attribute activity log to matching user by email, or fallback to issue creator/assignee/system user
+            # Attribute activity log to matching user by email, or fallback to issue assignee/creator
             actor_user_id = None
             if gh_event.author_email:
                 matched_user = User.query.filter_by(email=gh_event.author_email).first()
@@ -164,6 +170,7 @@ def receive_github_webhook():
             processed_results.append({
                 'issue_id': issue.issue_id,
                 'issue_title': issue.title,
+                'project_id': issue.project_id,
                 'status_changed': changed,
                 'old_status': old_status,
                 'new_status': new_status,
@@ -180,6 +187,34 @@ def receive_github_webhook():
         'processed_count': len(processed_results),
         'results': processed_results
     }), 200
+
+
+# --------------------------------------------------
+# POST /api/webhooks/github/<webhook_token> — Project Webhook Receiver
+# --------------------------------------------------
+@webhooks_bp.route('/github/<string:webhook_token>', methods=['POST'])
+def receive_project_github_webhook(webhook_token):
+    """
+    Project-dedicated webhook receiver endpoint.
+    Looks up project by webhook_token, verifies with project.webhook_secret,
+    and limits issue updates strictly to the given project.
+    """
+    project = Project.query.filter_by(webhook_token=webhook_token).first()
+    if not project:
+        return jsonify({'error': 'Not Found', 'message': 'Unknown or invalid project webhook token'}), 404
+
+    return _handle_webhook_payload(project=project)
+
+
+# --------------------------------------------------
+# POST /api/webhooks/github — Global Fallback Receiver
+# --------------------------------------------------
+@webhooks_bp.route('/github', methods=['POST'])
+def receive_github_webhook():
+    """
+    Global webhook receiver endpoint (uses GITHUB_WEBHOOK_SECRET from config).
+    """
+    return _handle_webhook_payload(project=None)
 
 
 # --------------------------------------------------
