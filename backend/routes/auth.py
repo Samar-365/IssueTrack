@@ -56,23 +56,53 @@ def register():
     if role not in ('employee', 'manager'):
         role = 'employee'
 
-    # Check if user already exists
-    existing = User.query.filter_by(email=email).first()
-    if existing:
+    # Check if this email was previously removed from this team by the manager
+    from models.removed_member import RemovedTeamMember
+    removed_entry = RemovedTeamMember.query.filter(
+        db.func.lower(RemovedTeamMember.team_id) == team_id.lower(),
+        db.func.lower(RemovedTeamMember.email) == email.lower()
+    ).first()
+    if removed_entry:
+        return jsonify({'error': f'Access Denied: You have been removed from Team "{team_id}" and cannot rejoin with this email address.'}), 403
+
+    existing_user = User.query.filter_by(email=email).first()
+
+    if existing_user and (existing_user.role != 'employee' or (existing_user.team_id and existing_user.team_id.strip().upper() != team_id.strip().upper())):
         return jsonify({'error': 'An account with this email already exists'}), 409
 
-    # Create new user
-    user = User(
-        name=name,
-        email=email,
-        role=role,
-        team_id=team_id,
-        is_active=True
-    )
-    user.set_password(password)
+    if role == 'employee' and team_id:
+        # Check if this employee email has been manually added to this team by the Project Manager
+        if not existing_user or not existing_user.team_id or existing_user.team_id.strip().upper() != team_id.strip().upper():
+            return jsonify({
+                'error': f'Access Denied: The email "{email}" has not been added to Team "{team_id}" by the Project Manager. Please ask your manager to add your email in the Users section first.'
+            }), 403
 
-    db.session.add(user)
-    db.session.commit()
+        # Check if the employee's name matches the name entered by the Project Manager
+        if existing_user.name and existing_user.name.strip().lower() != name.strip().lower():
+            return jsonify({
+                'error': f'Access Denied: The name "{name}" does not match the name registered by your Project Manager for this email ("{existing_user.name}").'
+            }), 403
+
+        # User was pre-added by manager -> update credentials
+        existing_user.name = name
+        existing_user.set_password(password)
+        db.session.commit()
+        user = existing_user
+    else:
+        # Manager registration (creates team) or admin
+        if existing_user:
+            return jsonify({'error': 'An account with this email already exists'}), 409
+
+        user = User(
+            name=name,
+            email=email,
+            role=role,
+            team_id=team_id,
+            is_active=True
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
 
     # Log activity
     log = ActivityLog(
@@ -140,62 +170,79 @@ def login():
 
 
 # --------------------------------------------------
-# POST /api/auth/team-login — Direct Employee Login with Team ID only
+# POST /api/auth/team-login — Direct Employee Login with Team ID, Name & Email
 # --------------------------------------------------
 @auth_bp.route('/team-login', methods=['POST'])
 def team_login():
     """
-    Authenticate an employee directly using their unique Team ID.
-    Validates that the team exists (created by a manager/admin or with projects).
-    Creates or retrieves the employee session for that team.
+    Authenticate an employee directly using Team ID, Name, and Email.
+    Strictly verifies that all employee details (Team ID, Email, and Name) match
+    the details entered by the Project Manager when adding the user.
     """
     data = request.get_json() or {}
     team_id = (data.get('team_id') or '').strip().upper()
     name = (data.get('name') or '').strip()
+    email = (data.get('email') or '').strip().lower()
 
     if not team_id:
         return jsonify({'error': 'Team ID is required'}), 400
+    if not name:
+        return jsonify({'error': 'Full Name is required'}), 400
+    if not email:
+        return jsonify({'error': 'Email ID is required'}), 400
+    if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+        return jsonify({'error': 'Invalid email address format'}), 400
 
     from models.project import Project
+    from models.removed_member import RemovedTeamMember
+
     # Check if team exists (any user or project registered with this team_id)
-    team_exists = User.query.filter_by(team_id=team_id).first() is not None or \
-                  Project.query.filter_by(team_id=team_id).first() is not None
+    team_exists = User.query.filter(db.func.lower(User.team_id) == team_id.lower()).first() is not None or \
+                  Project.query.filter(db.func.lower(Project.team_id) == team_id.lower()).first() is not None
 
     if not team_exists:
         return jsonify({'error': f'Team ID "{team_id}" does not exist. Please check with your Project Manager.'}), 404
 
-    # Determine employee name and email identifier
-    emp_name = name if name else f'Team Member ({team_id})'
-    slug_name = re.sub(r'[^a-zA-Z0-9]', '_', emp_name.lower())
-    emp_email = f"{slug_name}_{team_id.lower()}@team.local"
+    # Check if this email was removed from this team by the project manager
+    removed_entry = RemovedTeamMember.query.filter(
+        db.func.lower(RemovedTeamMember.team_id) == team_id.lower(),
+        db.func.lower(RemovedTeamMember.email) == email.lower()
+    ).first()
+    if removed_entry:
+        return jsonify({
+            'error': f'Access Denied: The email "{email}" was removed from Team "{team_id}" by the Project Manager and cannot rejoin.'
+        }), 403
 
-    # Find existing employee user or create one
-    user = User.query.filter_by(email=emp_email).first()
+    # Check if this email has been manually added by the Project Manager (Strict whitelist)
+    user = User.query.filter(
+        db.func.lower(User.email) == email.lower(),
+        db.func.lower(User.team_id) == team_id.lower()
+    ).first()
+
     if not user:
-        user = User(
-            name=emp_name,
-            email=emp_email,
-            role='employee',
-            team_id=team_id,
-            is_active=True
-        )
-        user.set_password(f'team_pass_{team_id}')
-        db.session.add(user)
-        db.session.commit()
-
-        # Log activity
-        log = ActivityLog(
-            user_id=user.user_id,
-            action='team_employee_joined',
-            details=f'Employee {user.name} logged in via Team ID "{team_id}"',
-            entity_type='user',
-            entity_id=user.user_id,
-        )
-        db.session.add(log)
-        db.session.commit()
+        return jsonify({
+            'error': f'Access Denied: The email "{email}" has not been added to Team "{team_id}" by the Project Manager. Please ask your manager to add your email in the Users section first.'
+        }), 403
 
     if not user.is_active:
         return jsonify({'error': 'Account is deactivated. Contact your manager or an administrator.'}), 403
+
+    # Check if the employee's name matches the name entered by the Project Manager
+    if user.name and user.name.strip().lower() != name.strip().lower():
+        return jsonify({
+            'error': f'Access Denied: The name "{name}" does not match the name registered by your Project Manager for this email ("{user.name}").'
+        }), 403
+
+    # Log activity on login
+    log = ActivityLog(
+        user_id=user.user_id,
+        action='team_employee_joined',
+        details=f'Employee {user.name} ({user.email}) accessed workspace for Team "{team_id}"',
+        entity_type='user',
+        entity_id=user.user_id,
+    )
+    db.session.add(log)
+    db.session.commit()
 
     access_token = create_access_token(
         identity=str(user.user_id),

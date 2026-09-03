@@ -161,10 +161,10 @@ function UsersPage() {
               : `View your teammates and project manager in Team ${currentUser?.team_id || ''}`}
           </p>
         </div>
-        {isAdmin && (
+        {(isAdmin || isManager) && (
           <button className="btn btn-primary btn-lg" onClick={() => setModalMode('create')}>
             <HiOutlineUserAdd />
-            Add User
+            {isAdmin ? 'Add User' : 'Add Employee'}
           </button>
         )}
       </div>
@@ -414,6 +414,7 @@ function UsersPage() {
       {modalMode === 'create' && (
         <UserFormModal
           mode="create"
+          currentUser={currentUser}
           onClose={() => setModalMode(null)}
           onSubmit={handleCreateUser}
         />
@@ -422,6 +423,7 @@ function UsersPage() {
         <UserFormModal
           mode="edit"
           user={editingUser}
+          currentUser={currentUser}
           onClose={() => { setModalMode(null); setEditingUser(null) }}
           onSubmit={handleEditUser}
         />

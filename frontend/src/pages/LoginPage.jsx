@@ -35,6 +35,7 @@ function LoginPage() {
   // Team login form state (Direct employee login)
   const [teamLoginId, setTeamLoginId] = useState('')
   const [teamLoginName, setTeamLoginName] = useState('')
+  const [teamLoginEmail, setTeamLoginEmail] = useState('')
 
   // Register form state
   const [regName, setRegName] = useState('')
@@ -100,13 +101,21 @@ function LoginPage() {
       setError('Please enter your unique Team ID')
       return
     }
+    if (!teamLoginName.trim()) {
+      setError('Please enter your full name as registered by your manager')
+      return
+    }
+    if (!teamLoginEmail.trim()) {
+      setError('Please enter your email address')
+      return
+    }
 
     setIsLoading(true)
     try {
-      await teamLogin(teamLoginId.trim().toUpperCase(), teamLoginName.trim())
+      await teamLogin(teamLoginId.trim().toUpperCase(), teamLoginName.trim(), teamLoginEmail.trim().toLowerCase())
       navigate('/dashboard', { replace: true })
     } catch (err) {
-      const msg = err.response?.data?.error || 'Team login failed. Please check your Team ID.'
+      const msg = err.response?.data?.error || 'Team login failed. Please check your details.'
       setError(msg)
     } finally {
       setIsLoading(false)
@@ -360,6 +369,22 @@ function LoginPage() {
                   value={teamLoginName}
                   onChange={(e) => setTeamLoginName(e.target.value)}
                   autoComplete="name"
+                />
+              </div>
+            </div>
+
+            <div className="login-field">
+              <label className="login-label" htmlFor="team-login-email">Your Email Address</label>
+              <div className="login-input-wrapper">
+                <HiOutlineMail className="login-input-icon" />
+                <input
+                  id="team-login-email"
+                  type="email"
+                  className="login-input"
+                  placeholder="e.g. alex@company.com"
+                  value={teamLoginEmail}
+                  onChange={(e) => setTeamLoginEmail(e.target.value)}
+                  autoComplete="email"
                 />
               </div>
             </div>

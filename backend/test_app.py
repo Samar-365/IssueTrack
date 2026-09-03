@@ -71,17 +71,17 @@ class IssueTrackerTestCase(unittest.TestCase):
     # 1. User Authentication Module Tests
     def test_auth_register_success(self):
         res = self.client.post('/api/auth/register', json={
-            'name': 'Fresh User',
-            'email': 'fresh@test.com',
+            'name': 'Fresh Manager',
+            'email': 'fresh_mgr@test.com',
             'password': 'SecurePass123',
-            'role': 'employee',
-            'team_id': 'TEAM-ALPHA'
+            'role': 'manager',
+            'team_id': 'TEAM-FRESH'
         })
         self.assertEqual(res.status_code, 201)
         data = json.loads(res.data)
         self.assertIn('access_token', data)
-        self.assertEqual(data['user']['email'], 'fresh@test.com')
-        self.assertEqual(data['user']['team_id'], 'TEAM-ALPHA')
+        self.assertEqual(data['user']['email'], 'fresh_mgr@test.com')
+        self.assertEqual(data['user']['team_id'], 'TEAM-FRESH')
 
     def test_auth_register_requires_team_id(self):
         res = self.client.post('/api/auth/register', json={
@@ -136,25 +136,87 @@ class IssueTrackerTestCase(unittest.TestCase):
         self.assertEqual(data['user']['email'], 'admin@test.com')
 
     def test_team_login_success(self):
+        # 1. Employee pre-seeded in TEAM-ALPHA logs in
         res = self.client.post('/api/auth/team-login', json={
             'team_id': 'TEAM-ALPHA',
-            'name': 'Dev Direct'
+            'name': 'Test Employee',
+            'email': 'employee@test.com'
         })
         self.assertEqual(res.status_code, 200)
         data = json.loads(res.data)
         self.assertIn('access_token', data)
         self.assertEqual(data['user']['role'], 'employee')
         self.assertEqual(data['user']['team_id'], 'TEAM-ALPHA')
-        self.assertEqual(data['user']['name'], 'Dev Direct')
+        self.assertEqual(data['user']['email'], 'employee@test.com')
+
+    def test_team_login_uninvited_email_rejected(self):
+        # Email not added by manager is rejected (403)
+        res = self.client.post('/api/auth/team-login', json={
+            'team_id': 'TEAM-ALPHA',
+            'name': 'Uninvited Dev',
+            'email': 'uninvited@test.com'
+        })
+        self.assertEqual(res.status_code, 403)
+        data = json.loads(res.data)
+        self.assertIn('not been added to Team', data['error'])
+
+    def test_team_login_mismatched_name_rejected(self):
+        # Email and team_id exist (employee@test.com on TEAM-ALPHA is 'Test Employee'), but wrong name provided
+        res = self.client.post('/api/auth/team-login', json={
+            'team_id': 'TEAM-ALPHA',
+            'name': 'Wrong Name Hacker',
+            'email': 'employee@test.com'
+        })
+        self.assertEqual(res.status_code, 403)
+        data = json.loads(res.data)
+        self.assertIn('does not match the name registered by your Project Manager', data['error'])
 
     def test_team_login_invalid_team(self):
         res = self.client.post('/api/auth/team-login', json={
             'team_id': 'NONEXISTENT-TEAM-999',
-            'name': 'Random Dev'
+            'name': 'Random Dev',
+            'email': 'random_dev@test.com'
         })
         self.assertEqual(res.status_code, 404)
         data = json.loads(res.data)
         self.assertIn('does not exist', data['error'])
+
+    def test_manager_manually_adds_employee_and_accesses_workspace(self):
+        # Manager logs in
+        mgr_login = self.client.post('/api/auth/login', json={
+            'email': 'manager@test.com',
+            'password': 'ManagerPass123'
+        })
+        mgr_token = json.loads(mgr_login.data)['access_token']
+        mgr_headers = {'Authorization': f'Bearer {mgr_token}'}
+
+        # Manager manually adds employee email in user section
+        add_res = self.client.post('/api/users', headers=mgr_headers, json={
+            'name': 'Invited Dev',
+            'email': 'invited_dev@test.com'
+        })
+        self.assertEqual(add_res.status_code, 201)
+        invited_user_id = json.loads(add_res.data)['user']['user_id']
+
+        # Now employee can log in via Team ID Access
+        emp_res = self.client.post('/api/auth/team-login', json={
+            'team_id': 'TEAM-ALPHA',
+            'name': 'Invited Dev',
+            'email': 'invited_dev@test.com'
+        })
+        self.assertEqual(emp_res.status_code, 200)
+
+        # Manager removes the employee
+        rem_res = self.client.post(f'/api/users/{invited_user_id}/remove-from-team', headers=mgr_headers)
+        self.assertEqual(rem_res.status_code, 200)
+
+        # Employee cannot rejoin with that email -> 403
+        rejoin_res = self.client.post('/api/auth/team-login', json={
+            'team_id': 'TEAM-ALPHA',
+            'name': 'Invited Dev',
+            'email': 'invited_dev@test.com'
+        })
+        self.assertEqual(rejoin_res.status_code, 403)
 
     # 2. User Management Module Tests
     def test_user_creation(self):
@@ -213,23 +275,17 @@ class IssueTrackerTestCase(unittest.TestCase):
         omega_mgr_token = json.loads(m_res.data)['access_token']
         omega_headers = {'Authorization': f'Bearer {omega_mgr_token}'}
 
-        # 2. Register two employees for TEAM-OMEGA
-        emp1_res = self.client.post('/api/auth/register', json={
+        # 2. Omega Manager adds two employees for TEAM-OMEGA
+        emp1_res = self.client.post('/api/users', headers=omega_headers, json={
             'name': 'Omega Dev 1',
-            'email': 'omega_dev1@test.com',
-            'password': 'Password123',
-            'role': 'employee',
-            'team_id': 'TEAM-OMEGA'
+            'email': 'omega_dev1@test.com'
         })
         self.assertEqual(emp1_res.status_code, 201)
         omega_emp1_id = json.loads(emp1_res.data)['user']['user_id']
 
-        emp2_res = self.client.post('/api/auth/register', json={
+        emp2_res = self.client.post('/api/users', headers=omega_headers, json={
             'name': 'Omega Dev 2',
-            'email': 'omega_dev2@test.com',
-            'password': 'Password123',
-            'role': 'employee',
-            'team_id': 'TEAM-OMEGA'
+            'email': 'omega_dev2@test.com'
         })
         self.assertEqual(emp2_res.status_code, 201)
         omega_emp2_id = json.loads(emp2_res.data)['user']['user_id']
@@ -333,17 +389,6 @@ class IssueTrackerTestCase(unittest.TestCase):
             self.assertEqual(u['team_id'], 'TEAM-ALPHA')
 
     def test_manager_remove_employee_from_team_and_project(self):
-        # Register an employee for TEAM-ALPHA
-        reg_res = self.client.post('/api/auth/register', json={
-            'name': 'Alpha Employee To Remove',
-            'email': 'alpha_remove_emp@test.com',
-            'password': 'Password123',
-            'role': 'employee',
-            'team_id': 'TEAM-ALPHA'
-        })
-        self.assertEqual(reg_res.status_code, 201)
-        removable_user_id = json.loads(reg_res.data)['user']['user_id']
-
         # Alpha manager login
         alpha_login = self.client.post('/api/auth/login', json={
             'email': 'manager@test.com',
@@ -351,6 +396,14 @@ class IssueTrackerTestCase(unittest.TestCase):
         })
         alpha_token = json.loads(alpha_login.data)['access_token']
         alpha_headers = {'Authorization': f'Bearer {alpha_token}'}
+
+        # Alpha manager adds an employee to TEAM-ALPHA
+        add_res = self.client.post('/api/users', headers=alpha_headers, json={
+            'name': 'Alpha Employee To Remove',
+            'email': 'alpha_remove_emp@test.com'
+        })
+        self.assertEqual(add_res.status_code, 201)
+        removable_user_id = json.loads(add_res.data)['user']['user_id']
 
         # Alpha manager creates project
         p_res = self.client.post('/api/projects', headers=alpha_headers, json={
@@ -363,14 +416,22 @@ class IssueTrackerTestCase(unittest.TestCase):
         proj_rem_res = self.client.delete(f'/api/projects/{proj_id}/members/{removable_user_id}', headers=alpha_headers)
         self.assertEqual(proj_rem_res.status_code, 200)
 
-        # Register employee for team beta
-        beta_emp_res = self.client.post('/api/auth/register', json={
-            'name': 'Beta Employee',
-            'email': 'beta_emp_isolation@test.com',
+        # Register Manager for Team BETA to add Beta employee
+        beta_mgr_res = self.client.post('/api/auth/register', json={
+            'name': 'Beta Manager 2',
+            'email': 'beta_mgr2@test.com',
             'password': 'Password123',
-            'role': 'employee',
+            'role': 'manager',
             'team_id': 'TEAM-BETA'
         })
+        beta_mgr_token = json.loads(beta_mgr_res.data)['access_token']
+        beta_headers = {'Authorization': f'Bearer {beta_mgr_token}'}
+
+        beta_emp_res = self.client.post('/api/users', headers=beta_headers, json={
+            'name': 'Beta Employee',
+            'email': 'beta_emp_isolation@test.com'
+        })
+        self.assertEqual(beta_emp_res.status_code, 201)
         beta_emp_id = json.loads(beta_emp_res.data)['user']['user_id']
 
         # Alpha manager cannot remove Beta employee from team (403)

@@ -3,6 +3,7 @@ User Management routes — CRUD operations for system users.
 Admin-only access for create, edit, and deactivate.
 Managers get read-only list access (needed for issue assignment).
 """
+import re
 from functools import wraps
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
@@ -127,37 +128,89 @@ def get_user(user_id):
 
 
 # --------------------------------------------------
-# POST /api/users — Create a new user (FR-4)
+# POST /api/users — Create a new user (Admin / Manager)
 # --------------------------------------------------
 @users_bp.route('', methods=['POST'])
-@admin_required
+@manager_or_admin_required
 def create_user():
-    """Create a new user. Admin only."""
-    data = request.get_json()
+    """Create a new user. Admins can create any user; Managers can add employees to their team."""
+    claims = get_jwt()
+    current_role = claims.get('role')
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = (current_user.team_id if current_user else claims.get('team_id')) or ''
+
+    data = request.get_json() or {}
 
     # --- Validate required fields ---
     name = (data.get('name') or '').strip()
-    email = (data.get('email') or '').strip()
+    email = (data.get('email') or '').strip().lower()
     password = data.get('password', '')
     role = (data.get('role') or 'employee').strip().lower()
-    team_id = (data.get('team_id') or '').strip() or None
+    team_id = (data.get('team_id') or '').strip().upper() or None
 
     errors = []
     if not name:
         errors.append('Name is required')
     if not email:
         errors.append('Email is required')
-    if not password or len(password) < 6:
-        errors.append('Password must be at least 6 characters')
-    if role not in VALID_ROLES:
-        errors.append(f'Role must be one of: {", ".join(VALID_ROLES)}')
+    elif not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+        errors.append('Invalid email address format')
+
+    if current_role == 'manager':
+        if not user_team:
+            return jsonify({'error': 'You do not have a Team ID assigned. Contact an administrator.'}), 400
+        team_id = user_team.strip().upper()
+        role = 'employee'
+        if not password:
+            import secrets
+            password = f'team_pass_{secrets.token_hex(8)}'
+        elif len(password) < 6:
+            errors.append('Password must be at least 6 characters')
+    else:  # admin
+        if not password or len(password) < 6:
+            errors.append('Password must be at least 6 characters')
+        if role not in VALID_ROLES:
+            errors.append(f'Role must be one of: {", ".join(VALID_ROLES)}')
 
     if errors:
         return jsonify({'error': '; '.join(errors)}), 400
 
-    # --- Check duplicate email ---
-    if User.query.filter_by(email=email).first():
-        return jsonify({'error': 'A user with this email already exists'}), 409
+    # Check if email is in RemovedTeamMember blocklist for this team
+    if team_id:
+        from models.removed_member import RemovedTeamMember
+        removed = RemovedTeamMember.query.filter(
+            db.func.lower(RemovedTeamMember.team_id) == team_id.lower(),
+            db.func.lower(RemovedTeamMember.email) == email.lower()
+        ).first()
+        if removed:
+            return jsonify({'error': f'The email "{email}" was previously removed from Team "{team_id}" and cannot be added back.'}), 400
+
+    # --- Check existing user ---
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        if current_role == 'manager':
+            if existing_user.team_id and existing_user.team_id.strip().upper() == team_id:
+                return jsonify({'error': f'Employee "{email}" is already a member of your team.'}), 409
+            elif existing_user.team_id:
+                return jsonify({'error': f'User "{email}" is already assigned to a different team ("{existing_user.team_id}").'}), 409
+            else:
+                # User exists but was unassigned — link to manager's team
+                existing_user.team_id = team_id
+                existing_user.role = 'employee'
+                existing_user.is_active = True
+                if name:
+                    existing_user.name = name
+                _log_activity(current_user_id, 'user_added_to_team',
+                              f'Added employee "{existing_user.name}" ({email}) to team "{team_id}"',
+                              entity_id=existing_user.user_id)
+                db.session.commit()
+                return jsonify({
+                    'message': f'Employee "{existing_user.name}" added to Team {team_id} successfully',
+                    'user': existing_user.to_dict(),
+                }), 201
+        else:
+            return jsonify({'error': 'A user with this email already exists'}), 409
 
     # --- Create user ---
     user = User(
@@ -173,15 +226,14 @@ def create_user():
     db.session.flush()  # get user_id before commit
 
     # Log activity
-    admin_id = int(get_jwt_identity())
-    _log_activity(admin_id, 'user_created',
+    _log_activity(current_user_id, 'user_created',
                   f'Created user "{name}" ({email}) with role {role} (Team: {team_id or "General"})',
                   entity_id=user.user_id)
 
     db.session.commit()
 
     return jsonify({
-        'message': f'User "{name}" created successfully',
+        'message': f'Employee "{name}" added to Team {team_id} successfully' if current_role == 'manager' else f'User "{name}" created successfully',
         'user': user.to_dict(),
     }), 201
 
@@ -483,6 +535,22 @@ def remove_user_from_team(user_id):
 
     old_team = target_user.team_id
     target_user.team_id = None
+
+    # Track in RemovedTeamMember so this email cannot rejoin this team via Team ID or Register
+    from models.removed_member import RemovedTeamMember
+    if old_team and target_user.email:
+        existing_rec = RemovedTeamMember.query.filter(
+            db.func.lower(RemovedTeamMember.team_id) == old_team.strip().lower(),
+            db.func.lower(RemovedTeamMember.email) == target_user.email.strip().lower()
+        ).first()
+        if not existing_rec:
+            removal_rec = RemovedTeamMember(
+                team_id=old_team.strip().upper(),
+                email=target_user.email.strip().lower(),
+                user_id=target_user.user_id,
+                removed_by=manager_id
+            )
+            db.session.add(removal_rec)
 
     # Unassign issues in manager's team projects
     from models.issue import Issue
