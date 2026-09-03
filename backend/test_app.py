@@ -199,6 +199,79 @@ class IssueTrackerTestCase(unittest.TestCase):
         self_res = self.client.delete(f'/api/users/{self.admin_user.user_id}', headers=self.admin_headers)
         self.assertEqual(self_res.status_code, 400)
 
+    def test_admin_delete_manager_cascades_whole_team(self):
+        # 1. Create a distinct manager for TEAM-OMEGA
+        m_res = self.client.post('/api/auth/register', json={
+            'name': 'Omega Manager',
+            'email': 'omega_mgr@test.com',
+            'password': 'Password123',
+            'role': 'manager',
+            'team_id': 'TEAM-OMEGA'
+        })
+        self.assertEqual(m_res.status_code, 201)
+        omega_mgr_id = json.loads(m_res.data)['user']['user_id']
+        omega_mgr_token = json.loads(m_res.data)['access_token']
+        omega_headers = {'Authorization': f'Bearer {omega_mgr_token}'}
+
+        # 2. Register two employees for TEAM-OMEGA
+        emp1_res = self.client.post('/api/auth/register', json={
+            'name': 'Omega Dev 1',
+            'email': 'omega_dev1@test.com',
+            'password': 'Password123',
+            'role': 'employee',
+            'team_id': 'TEAM-OMEGA'
+        })
+        self.assertEqual(emp1_res.status_code, 201)
+        omega_emp1_id = json.loads(emp1_res.data)['user']['user_id']
+
+        emp2_res = self.client.post('/api/auth/register', json={
+            'name': 'Omega Dev 2',
+            'email': 'omega_dev2@test.com',
+            'password': 'Password123',
+            'role': 'employee',
+            'team_id': 'TEAM-OMEGA'
+        })
+        self.assertEqual(emp2_res.status_code, 201)
+        omega_emp2_id = json.loads(emp2_res.data)['user']['user_id']
+
+        # 3. Omega Manager creates a project and an issue
+        proj_res = self.client.post('/api/projects', headers=omega_headers, json={
+            'project_name': 'Omega Project'
+        })
+        self.assertEqual(proj_res.status_code, 201)
+        omega_proj_id = json.loads(proj_res.data)['project']['project_id']
+
+        issue_res = self.client.post('/api/issues', headers=omega_headers, json={
+            'title': 'Omega Issue 1',
+            'project_id': omega_proj_id,
+            'assigned_to': omega_emp1_id,
+            'priority': 'high',
+            'type': 'bug'
+        })
+        self.assertEqual(issue_res.status_code, 201)
+        omega_issue_id = json.loads(issue_res.data)['issue']['issue_id']
+
+        # 4. Admin deletes the Omega Manager
+        del_mgr_res = self.client.delete(f'/api/users/{omega_mgr_id}', headers=self.admin_headers)
+        self.assertEqual(del_mgr_res.status_code, 200)
+
+        # 5. Verify the manager AND all team employees are deleted
+        g_mgr = self.client.get(f'/api/users/{omega_mgr_id}', headers=self.admin_headers)
+        self.assertEqual(g_mgr.status_code, 404)
+
+        g_emp1 = self.client.get(f'/api/users/{omega_emp1_id}', headers=self.admin_headers)
+        self.assertEqual(g_emp1.status_code, 404)
+
+        g_emp2 = self.client.get(f'/api/users/{omega_emp2_id}', headers=self.admin_headers)
+        self.assertEqual(g_emp2.status_code, 404)
+
+        # 6. Verify the project and issue are also deleted
+        g_proj = self.client.get(f'/api/projects/{omega_proj_id}', headers=self.admin_headers)
+        self.assertEqual(g_proj.status_code, 404)
+
+        g_issue = self.client.get(f'/api/issues/{omega_issue_id}', headers=self.admin_headers)
+        self.assertEqual(g_issue.status_code, 404)
+
     def test_team_isolation(self):
         # Register Manager for Team BETA
         m_res = self.client.post('/api/auth/register', json={

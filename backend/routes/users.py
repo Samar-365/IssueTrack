@@ -298,7 +298,7 @@ def toggle_user_status(user_id):
 @users_bp.route('/<int:user_id>', methods=['DELETE'])
 @admin_required
 def delete_user(user_id):
-    """Permanently delete a user. Admin only."""
+    """Permanently delete a user. If deleting a project manager, cascades to delete their whole team."""
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -312,19 +312,73 @@ def delete_user(user_id):
     from models.comment import Comment
     from models.notification import Notification
 
+    user_name = user.name
+    user_email = user.email
+    user_role = user.role
+    user_team = user.team_id
+
+    # If the user is a Project Manager with a team, delete the entire team (employees & projects)
+    if user_role == 'manager' and user_team:
+        team_id_clean = user_team.strip()
+        # Find all users in this team (except deleting admin)
+        team_users = User.query.filter(
+            db.func.lower(User.team_id) == team_id_clean.lower(),
+            User.user_id != admin_id
+        ).all()
+        team_user_ids = [u.user_id for u in team_users]
+
+        # Find all projects belonging to this team or managed by these users
+        team_projects = Project.query.filter(
+            db.or_(
+                db.func.lower(Project.team_id) == team_id_clean.lower(),
+                Project.manager_id.in_(team_user_ids)
+            )
+        ).all()
+        team_project_ids = [p.project_id for p in team_projects]
+
+        # Clean issues, comments for these projects
+        if team_project_ids:
+            team_issues = Issue.query.filter(Issue.project_id.in_(team_project_ids)).all()
+            team_issue_ids = [i.issue_id for i in team_issues]
+            if team_issue_ids:
+                Comment.query.filter(Comment.issue_id.in_(team_issue_ids)).delete(synchronize_session=False)
+                ActivityLog.query.filter(ActivityLog.entity_type == 'issue', ActivityLog.entity_id.in_(team_issue_ids)).delete(synchronize_session=False)
+                Issue.query.filter(Issue.issue_id.in_(team_issue_ids)).delete(synchronize_session=False)
+
+        # Clean user notifications, comments, activity logs
+        if team_user_ids:
+            Notification.query.filter(Notification.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+            Comment.query.filter(Comment.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+            ActivityLog.query.filter(ActivityLog.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+
+        # Delete all team projects
+        for proj in team_projects:
+            db.session.delete(proj)
+
+        # Delete all team users
+        deleted_count = len(team_users)
+        for u in team_users:
+            db.session.delete(u)
+
+        _log_activity(admin_id, 'team_deleted',
+                      f'Deleted manager "{user_name}" and whole team "{team_id_clean}" ({deleted_count} members, {len(team_projects)} projects)',
+                      entity_id=user_id)
+        db.session.commit()
+
+        return jsonify({
+            'message': f'Manager "{user_name}" and whole team "{team_id_clean}" ({deleted_count} members, {len(team_projects)} projects) deleted successfully'
+        }), 200
+
+    # Single user deletion (e.g. employee or admin)
     # Reassign created_by to the deleting admin so projects/issues aren't orphaned
     Project.query.filter_by(created_by=user_id).update({'created_by': admin_id})
     Project.query.filter_by(manager_id=user_id).update({'manager_id': None})
     Issue.query.filter_by(created_by=user_id).update({'created_by': admin_id})
     Issue.query.filter_by(assigned_to=user_id).update({'assigned_to': None})
 
-    # Clean up notifications and comments for this user
     Notification.query.filter_by(user_id=user_id).delete()
     Comment.query.filter_by(user_id=user_id).delete()
     ActivityLog.query.filter_by(user_id=user_id).delete()
-
-    user_name = user.name
-    user_email = user.email
 
     db.session.delete(user)
     _log_activity(admin_id, 'user_deleted',
@@ -333,6 +387,72 @@ def delete_user(user_id):
     db.session.commit()
 
     return jsonify({'message': f'User "{user_name}" deleted successfully'}), 200
+
+
+# --------------------------------------------------
+# DELETE /api/users/team/<team_id> — Delete whole team directly
+# --------------------------------------------------
+@users_bp.route('/team/<string:team_id>', methods=['DELETE'])
+@admin_required
+def delete_team(team_id):
+    """Permanently delete an entire team (all employees, managers, projects, issues). Admin only."""
+    team_id_clean = team_id.strip()
+    if not team_id_clean:
+        return jsonify({'error': 'Team ID is required'}), 400
+
+    admin_id = int(get_jwt_identity())
+
+    from models.issue import Issue
+    from models.project import Project
+    from models.comment import Comment
+    from models.notification import Notification
+
+    team_users = User.query.filter(
+        db.func.lower(User.team_id) == team_id_clean.lower(),
+        User.user_id != admin_id
+    ).all()
+
+    if not team_users:
+        return jsonify({'error': f'No team found with ID "{team_id_clean}"'}), 404
+
+    team_user_ids = [u.user_id for u in team_users]
+
+    team_projects = Project.query.filter(
+        db.or_(
+            db.func.lower(Project.team_id) == team_id_clean.lower(),
+            Project.manager_id.in_(team_user_ids)
+        )
+    ).all()
+    team_project_ids = [p.project_id for p in team_projects]
+
+    if team_project_ids:
+        team_issues = Issue.query.filter(Issue.project_id.in_(team_project_ids)).all()
+        team_issue_ids = [i.issue_id for i in team_issues]
+        if team_issue_ids:
+            Comment.query.filter(Comment.issue_id.in_(team_issue_ids)).delete(synchronize_session=False)
+            ActivityLog.query.filter(ActivityLog.entity_type == 'issue', ActivityLog.entity_id.in_(team_issue_ids)).delete(synchronize_session=False)
+            Issue.query.filter(Issue.issue_id.in_(team_issue_ids)).delete(synchronize_session=False)
+
+    if team_user_ids:
+        Notification.query.filter(Notification.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+        Comment.query.filter(Comment.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+        ActivityLog.query.filter(ActivityLog.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+
+    for proj in team_projects:
+        db.session.delete(proj)
+
+    deleted_count = len(team_users)
+    for u in team_users:
+        db.session.delete(u)
+
+    _log_activity(admin_id, 'team_deleted',
+                  f'Deleted whole team "{team_id_clean}" ({deleted_count} members, {len(team_projects)} projects)',
+                  entity_id=None)
+    db.session.commit()
+
+    return jsonify({
+        'message': f'Team "{team_id_clean}" and all {deleted_count} member(s) deleted successfully'
+    }), 200
 
 
 # --------------------------------------------------

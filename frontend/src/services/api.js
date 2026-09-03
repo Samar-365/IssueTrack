@@ -57,6 +57,7 @@ export const usersAPI = {
   create:         (data)        => api.post('/users', data),
   update:         (id, data)    => api.put(`/users/${id}`, data),
   delete:         (id)          => api.delete(`/users/${id}`),
+  deleteTeam:     (teamId)      => api.delete(`/users/team/${teamId}`),
   setStatus:      (id, active)  => api.patch(`/users/${id}/status`, { is_active: active }),
   removeFromTeam: (id)          => api.post(`/users/${id}/remove-from-team`),
 }
