@@ -53,81 +53,35 @@ def register():
     if not team_id:
         return jsonify({'error': 'Team ID is required'}), 400
 
-    if role not in ('employee', 'manager'):
-        role = 'employee'
+    if role == 'employee':
+        return jsonify({'error': 'Employee self-registration is disabled. Please access your workspace via Team Access.'}), 403
 
-    # Check if this email was previously removed from this team by the manager
-    from models.removed_member import RemovedTeamMember
-    removed_entry = RemovedTeamMember.query.filter(
-        db.func.lower(RemovedTeamMember.team_id) == team_id.lower(),
-        db.func.lower(RemovedTeamMember.email) == email.lower()
+    # Project Manager registration (Creates a new team)
+    role = 'manager'
+
+    # Check if an active Project Manager already exists for this team_id
+    existing_manager = User.query.filter(
+        db.func.lower(User.team_id) == team_id.lower(),
+        User.role == 'manager',
+        User.is_active == True
     ).first()
-    if removed_entry:
-        return jsonify({'error': f'Access Denied: You have been removed from Team "{team_id}" and cannot rejoin with this email address.'}), 403
+    if existing_manager:
+        return jsonify({'error': 'Team ID invalid'}), 409
 
     existing_user = User.query.filter_by(email=email).first()
-
-    if existing_user and (existing_user.role != 'employee' or (existing_user.team_id and existing_user.team_id.strip().upper() != team_id.strip().upper())):
+    if existing_user:
         return jsonify({'error': 'An account with this email already exists'}), 409
 
-    if role == 'manager':
-        # Check if an active Project Manager already exists for this team_id
-        existing_manager = User.query.filter(
-            db.func.lower(User.team_id) == team_id.lower(),
-            User.role == 'manager',
-            User.is_active == True
-        ).first()
-        if existing_manager:
-            return jsonify({
-                'error': f'Team ID "{team_id}" already has an active Project Manager ({existing_manager.name}). Each team can only have one Project Manager. Please register with a different unique Team ID.'
-            }), 409
-
-        if existing_user:
-            return jsonify({'error': 'An account with this email already exists'}), 409
-
-        user = User(
-            name=name,
-            email=email,
-            role=role,
-            team_id=team_id,
-            is_active=True
-        )
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-    elif role == 'employee' and team_id:
-        # Check if this employee email has been manually added to this team by the Project Manager
-        if not existing_user or not existing_user.team_id or existing_user.team_id.strip().upper() != team_id.strip().upper():
-            return jsonify({
-                'error': f'Access Denied: The email "{email}" has not been added to Team "{team_id}" by the Project Manager. Please ask your manager to add your email in the Users section first.'
-            }), 403
-
-        # Check if the employee's name matches the name entered by the Project Manager
-        if existing_user.name and existing_user.name.strip().lower() != name.strip().lower():
-            return jsonify({
-                'error': f'Access Denied: The name "{name}" does not match the name registered by your Project Manager for this email ("{existing_user.name}").'
-            }), 403
-
-        # User was pre-added by manager -> update credentials
-        existing_user.name = name
-        existing_user.set_password(password)
-        db.session.commit()
-        user = existing_user
-    else:
-        # Admin or other role
-        if existing_user:
-            return jsonify({'error': 'An account with this email already exists'}), 409
-
-        user = User(
-            name=name,
-            email=email,
-            role=role,
-            team_id=team_id,
-            is_active=True
-        )
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
+    user = User(
+        name=name,
+        email=email,
+        role='manager',
+        team_id=team_id,
+        is_active=True
+    )
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
 
     # Log activity
     log = ActivityLog(

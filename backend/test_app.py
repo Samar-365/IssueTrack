@@ -83,12 +83,24 @@ class IssueTrackerTestCase(unittest.TestCase):
         self.assertEqual(data['user']['email'], 'fresh_mgr@test.com')
         self.assertEqual(data['user']['team_id'], 'TEAM-FRESH')
 
+    def test_employee_registration_is_rejected(self):
+        res = self.client.post('/api/auth/register', json={
+            'name': 'Dev User',
+            'email': 'dev_user@test.com',
+            'password': 'SecurePass123',
+            'role': 'employee',
+            'team_id': 'TEAM-ALPHA'
+        })
+        self.assertEqual(res.status_code, 403)
+        data = json.loads(res.data)
+        self.assertIn('Employee self-registration is disabled', data['error'])
+
     def test_auth_register_requires_team_id(self):
         res = self.client.post('/api/auth/register', json={
             'name': 'No Team User',
             'email': 'noteam@test.com',
             'password': 'SecurePass123',
-            'role': 'employee'
+            'role': 'manager'
         })
         self.assertEqual(res.status_code, 400)
         data = json.loads(res.data)
@@ -105,23 +117,27 @@ class IssueTrackerTestCase(unittest.TestCase):
         })
         self.assertEqual(res.status_code, 409)
         data = json.loads(res.data)
-        self.assertIn('already has an active Project Manager', data['error'])
+        self.assertEqual(data['error'], 'Team ID invalid')
 
     def test_auth_register_duplicate_email(self):
         res = self.client.post('/api/auth/register', json={
             'name': 'Duplicate User',
             'email': 'admin@test.com',
             'password': 'SecurePass123',
-            'team_id': 'TEAM-ALPHA'
+            'role': 'manager',
+            'team_id': 'TEAM-UNIQUE-NEW'
         })
         self.assertEqual(res.status_code, 409)
+        data = json.loads(res.data)
+        self.assertIn('already exists', data['error'])
 
     def test_auth_register_short_password(self):
         res = self.client.post('/api/auth/register', json={
             'name': 'Short Pass',
             'email': 'short@test.com',
             'password': '123',
-            'team_id': 'TEAM-ALPHA'
+            'role': 'manager',
+            'team_id': 'TEAM-UNIQUE-NEW'
         })
         self.assertEqual(res.status_code, 400)
 
