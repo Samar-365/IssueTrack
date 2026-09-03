@@ -65,17 +65,20 @@ def list_users():
     role = claims.get('role')
     current_user_id = int(get_jwt_identity())
     current_user = User.query.get(current_user_id)
-    user_team = current_user.team_id if current_user else claims.get('team_id')
+    user_team = (current_user.team_id if current_user else claims.get('team_id')) or ''
 
     query = User.query
 
     # Managers only see users within their own team
     if role == 'manager':
-        query = query.filter_by(team_id=user_team)
+        if user_team.strip():
+            query = query.filter(db.func.lower(User.team_id) == user_team.strip().lower())
+        else:
+            query = query.filter(User.user_id == current_user_id)
     elif role == 'admin':
         team_filter = request.args.get('team_id')
         if team_filter:
-            query = query.filter_by(team_id=team_filter.strip())
+            query = query.filter(db.func.lower(User.team_id) == team_filter.strip().lower())
 
     role_filter = request.args.get('role')
     if role_filter and role_filter in VALID_ROLES:
@@ -104,12 +107,22 @@ def list_users():
 # GET /api/users/<id> — Get single user
 # --------------------------------------------------
 @users_bp.route('/<int:user_id>', methods=['GET'])
-@admin_required
+@manager_or_admin_required
 def get_user(user_id):
     """Return details for a single user."""
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
+
+    claims = get_jwt()
+    role = claims.get('role')
+    if role == 'manager':
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        user_team = (current_user.team_id if current_user else claims.get('team_id')) or ''
+        if not user.team_id or user.team_id.strip().lower() != user_team.strip().lower():
+            return jsonify({'error': 'Access denied to users outside your team'}), 403
+
     return jsonify({'user': user.to_dict()}), 200
 
 

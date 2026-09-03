@@ -25,6 +25,8 @@ import './UsersPage.css'
 function UsersPage() {
   const { user: currentUser } = useAuth()
   const isAdmin = currentUser?.role === 'admin'
+  const isManager = currentUser?.role === 'manager'
+  const canAccess = isAdmin || isManager
 
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -60,6 +62,7 @@ function UsersPage() {
     active: users.filter((u) => u.is_active).length,
     admins: users.filter((u) => u.role === 'admin').length,
     managers: users.filter((u) => u.role === 'manager').length,
+    employees: users.filter((u) => u.role === 'employee').length,
   }
 
   // ---- Handlers ----
@@ -112,14 +115,14 @@ function UsersPage() {
   }
 
   // ---- Permission check ----
-  if (!isAdmin) {
+  if (!canAccess) {
     return (
       <div className="animate-fade-in" style={{ padding: '2rem' }}>
         <div className="glass-card permission-denied">
           <div className="permission-denied-icon">🔒</div>
           <h3 className="permission-denied-title">Access Restricted</h3>
           <p className="permission-denied-text">
-            User management is available to administrators only.
+            User management is available to administrators and team managers only.
             Contact your admin if you need access.
           </p>
         </div>
@@ -144,13 +147,19 @@ function UsersPage() {
       {/* Page Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">User Management</h1>
-          <p className="page-subtitle">Create, edit, and manage system users</p>
+          <h1 className="page-title">{isAdmin ? 'User Management' : 'Team Members'}</h1>
+          <p className="page-subtitle">
+            {isAdmin
+              ? 'Create, edit, and manage system users'
+              : `View employees and members joined under Team ${currentUser?.team_id || ''}`}
+          </p>
         </div>
-        <button className="btn btn-primary btn-lg" onClick={() => setModalMode('create')}>
-          <HiOutlineUserAdd />
-          Add User
-        </button>
+        {isAdmin && (
+          <button className="btn btn-primary btn-lg" onClick={() => setModalMode('create')}>
+            <HiOutlineUserAdd />
+            Add User
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -161,7 +170,7 @@ function UsersPage() {
           </div>
           <div>
             <div className="users-stat-value">{stats.total}</div>
-            <div className="users-stat-label">Total Users</div>
+            <div className="users-stat-label">{isAdmin ? 'Total Users' : 'Team Members'}</div>
           </div>
         </div>
         <div className="users-stat-card">
@@ -173,24 +182,49 @@ function UsersPage() {
             <div className="users-stat-label">Active</div>
           </div>
         </div>
-        <div className="users-stat-card">
-          <div className="users-stat-icon rose">
-            <HiOutlineShieldCheck />
-          </div>
-          <div>
-            <div className="users-stat-value">{stats.admins}</div>
-            <div className="users-stat-label">Admins</div>
-          </div>
-        </div>
-        <div className="users-stat-card">
-          <div className="users-stat-icon amber">
-            <HiOutlineBriefcase />
-          </div>
-          <div>
-            <div className="users-stat-value">{stats.managers}</div>
-            <div className="users-stat-label">Managers</div>
-          </div>
-        </div>
+        {isAdmin ? (
+          <>
+            <div className="users-stat-card">
+              <div className="users-stat-icon rose">
+                <HiOutlineShieldCheck />
+              </div>
+              <div>
+                <div className="users-stat-value">{stats.admins}</div>
+                <div className="users-stat-label">Admins</div>
+              </div>
+            </div>
+            <div className="users-stat-card">
+              <div className="users-stat-icon amber">
+                <HiOutlineBriefcase />
+              </div>
+              <div>
+                <div className="users-stat-value">{stats.managers}</div>
+                <div className="users-stat-label">Managers</div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="users-stat-card">
+              <div className="users-stat-icon amber">
+                <HiOutlineBriefcase />
+              </div>
+              <div>
+                <div className="users-stat-value">{stats.employees}</div>
+                <div className="users-stat-label">Employees</div>
+              </div>
+            </div>
+            <div className="users-stat-card">
+              <div className="users-stat-icon rose">
+                <HiOutlineShieldCheck />
+              </div>
+              <div>
+                <div className="users-stat-value" style={{ fontSize: '1.25rem' }}>{currentUser?.team_id || '—'}</div>
+                <div className="users-stat-label">Your Team ID</div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -211,7 +245,7 @@ function UsersPage() {
           onChange={(e) => setRoleFilter(e.target.value)}
         >
           <option value="">All Roles</option>
-          <option value="admin">Admin</option>
+          {isAdmin && <option value="admin">Admin</option>}
           <option value="manager">Manager</option>
           <option value="employee">Employee</option>
         </select>
@@ -229,7 +263,9 @@ function UsersPage() {
           <p className="empty-state-text">
             {search || roleFilter
               ? 'Try adjusting your search or filters.'
-              : 'Create your first user to get started.'}
+              : isAdmin
+              ? 'Create your first user to get started.'
+              : `No employees have joined team "${currentUser?.team_id || ''}" yet.`}
           </p>
         </div>
       ) : (
@@ -242,7 +278,7 @@ function UsersPage() {
                 <th>Role</th>
                 <th>Status</th>
                 <th>Created</th>
-                <th>Actions</th>
+                <th>{isAdmin ? 'Actions' : 'Status'}</th>
               </tr>
             </thead>
             <tbody>
@@ -279,34 +315,40 @@ function UsersPage() {
                     {formatDate(u.created_at)}
                   </td>
                   <td>
-                    <div className="user-actions">
-                      <button
-                        className="action-btn edit"
-                        title="Edit user"
-                        onClick={() => openEdit(u)}
-                      >
-                        <HiOutlinePencil />
-                      </button>
-                      {u.user_id !== currentUser?.user_id && (
-                        <>
-                          <button
-                            className={`action-btn ${u.is_active ? 'deactivate' : 'activate'}`}
-                            title={u.is_active ? 'Deactivate user' : 'Activate user'}
-                            onClick={() => handleToggleStatus(u)}
-                          >
-                            {u.is_active ? <HiOutlineBan /> : <HiOutlineCheckCircle />}
-                          </button>
-                          <button
-                            className="action-btn deactivate"
-                            title="Delete user"
-                            onClick={() => handleDeleteUser(u)}
-                            style={{ color: 'var(--color-accent-rose)' }}
-                          >
-                            <HiOutlineTrash />
-                          </button>
-                        </>
-                      )}
-                    </div>
+                    {isAdmin ? (
+                      <div className="user-actions">
+                        <button
+                          className="action-btn edit"
+                          title="Edit user"
+                          onClick={() => openEdit(u)}
+                        >
+                          <HiOutlinePencil />
+                        </button>
+                        {u.user_id !== currentUser?.user_id && (
+                          <>
+                            <button
+                              className={`action-btn ${u.is_active ? 'deactivate' : 'activate'}`}
+                              title={u.is_active ? 'Deactivate user' : 'Activate user'}
+                              onClick={() => handleToggleStatus(u)}
+                            >
+                              {u.is_active ? <HiOutlineBan /> : <HiOutlineCheckCircle />}
+                            </button>
+                            <button
+                              className="action-btn deactivate"
+                              title="Delete user"
+                              onClick={() => handleDeleteUser(u)}
+                              style={{ color: 'var(--color-accent-rose)' }}
+                            >
+                              <HiOutlineTrash />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
+                        {u.user_id === currentUser?.user_id ? '(You)' : 'Team Member'}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

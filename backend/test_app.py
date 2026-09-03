@@ -245,6 +245,20 @@ class IssueTrackerTestCase(unittest.TestCase):
         emp_get_res = self.client.get(f'/api/projects/{beta_pid}', headers=emp_headers)
         self.assertEqual(emp_get_res.status_code, 403)
 
+        # Manager user list scoping: Beta manager only sees TEAM-BETA members
+        beta_users_res = self.client.get('/api/users', headers=beta_headers)
+        self.assertEqual(beta_users_res.status_code, 200)
+        beta_users = json.loads(beta_users_res.data)['users']
+        for u in beta_users:
+            self.assertEqual(u['team_id'], 'TEAM-BETA')
+
+        # Alpha manager only sees TEAM-ALPHA members
+        alpha_users_res = self.client.get('/api/users', headers=alpha_headers)
+        self.assertEqual(alpha_users_res.status_code, 200)
+        alpha_users = json.loads(alpha_users_res.data)['users']
+        for u in alpha_users:
+            self.assertEqual(u['team_id'], 'TEAM-ALPHA')
+
     # 3. Project Management Module Tests
     def test_project_crud(self):
         # Create Project
