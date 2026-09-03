@@ -7,6 +7,7 @@ import { projectsAPI } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import ProjectFormModal from '../components/ProjectFormModal'
 import GitHubWebhookModal from '../components/GitHubWebhookModal'
+import ProjectMembersModal from '../components/ProjectMembersModal'
 import { useToast, ToastContainer } from '../components/Toast'
 import {
   HiOutlinePlus,
@@ -18,6 +19,7 @@ import {
   HiOutlineUser,
   HiOutlineFolder,
   HiOutlineCode,
+  HiOutlineUsers,
 } from 'react-icons/hi'
 import './ProjectsPage.css'
 
@@ -37,6 +39,7 @@ export default function ProjectsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
   const [webhookProject, setWebhookProject] = useState(null)
+  const [membersProject, setMembersProject] = useState(null)
 
   // Toast
   const { toasts, addToast, removeToast } = useToast()
@@ -315,6 +318,14 @@ export default function ProjectsPage() {
                     <>
                       <button
                         className="btn btn-ghost btn-sm"
+                        onClick={() => setMembersProject(project)}
+                        title="View & Manage Project Members"
+                        style={{ color: 'var(--color-accent-violet)' }}
+                      >
+                        <HiOutlineUsers />
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
                         onClick={() => setWebhookProject(project)}
                         title="GitHub Webhook Integration"
                         style={{ color: 'var(--color-primary)' }}
@@ -358,6 +369,16 @@ export default function ProjectsPage() {
         project={webhookProject}
         onSecretRotated={(newSecret) => {
           addToast('Webhook secret rotated successfully', 'success')
+          fetchProjects()
+        }}
+      />
+
+      <ProjectMembersModal
+        isOpen={Boolean(membersProject)}
+        onClose={() => setMembersProject(null)}
+        project={membersProject}
+        onMemberRemoved={(member) => {
+          addToast(`Member "${member.name}" removed from project`, 'success')
           fetchProjects()
         }}
       />

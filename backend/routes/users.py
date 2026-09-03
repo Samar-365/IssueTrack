@@ -58,9 +58,9 @@ VALID_ROLES = ('admin', 'manager', 'employee')
 # GET /api/users — List all users
 # --------------------------------------------------
 @users_bp.route('', methods=['GET'])
-@manager_or_admin_required
+@jwt_required()
 def list_users():
-    """Return all users with optional role, status, and team_id filters."""
+    """Return all users with role-based scoping (Admins see all, Managers and Employees see team members)."""
     claims = get_jwt()
     role = claims.get('role')
     current_user_id = int(get_jwt_identity())
@@ -69,8 +69,8 @@ def list_users():
 
     query = User.query
 
-    # Managers only see users within their own team
-    if role == 'manager':
+    # Employees and Managers only see users within their own team (other employees & project manager)
+    if role in ('employee', 'manager'):
         if user_team.strip():
             query = query.filter(db.func.lower(User.team_id) == user_team.strip().lower())
         else:
@@ -107,16 +107,16 @@ def list_users():
 # GET /api/users/<id> — Get single user
 # --------------------------------------------------
 @users_bp.route('/<int:user_id>', methods=['GET'])
-@manager_or_admin_required
+@jwt_required()
 def get_user(user_id):
-    """Return details for a single user."""
+    """Return details for a single user (scoped to team for employees/managers)."""
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
     claims = get_jwt()
     role = claims.get('role')
-    if role == 'manager':
+    if role in ('employee', 'manager'):
         current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         user_team = (current_user.team_id if current_user else claims.get('team_id')) or ''
@@ -333,3 +333,56 @@ def delete_user(user_id):
     db.session.commit()
 
     return jsonify({'message': f'User "{user_name}" deleted successfully'}), 200
+
+
+# --------------------------------------------------
+# POST /api/users/<id>/remove-from-team — Remove employee from manager's team
+# --------------------------------------------------
+@users_bp.route('/<int:user_id>/remove-from-team', methods=['POST'])
+@manager_or_admin_required
+def remove_user_from_team(user_id):
+    """Remove an employee from the manager's team and unassign from team projects."""
+    target_user = User.query.get(user_id)
+    if not target_user:
+        return jsonify({'error': 'User not found'}), 404
+
+    claims = get_jwt()
+    role = claims.get('role')
+    manager_id = int(get_jwt_identity())
+    current_user = User.query.get(manager_id)
+    user_team = (current_user.team_id if current_user else claims.get('team_id')) or ''
+
+    if target_user.user_id == manager_id:
+        return jsonify({'error': 'You cannot remove yourself from your team'}), 400
+
+    if role == 'manager':
+        if not user_team or not target_user.team_id or target_user.team_id.strip().lower() != user_team.strip().lower():
+            return jsonify({'error': 'Access denied: user is not in your team'}), 403
+        if target_user.role == 'admin':
+            return jsonify({'error': 'Cannot remove an administrator'}), 403
+
+    old_team = target_user.team_id
+    target_user.team_id = None
+
+    # Unassign issues in manager's team projects
+    from models.issue import Issue
+    from models.project import Project
+    if old_team:
+        team_projects = Project.query.filter(db.func.lower(Project.team_id) == old_team.strip().lower()).all()
+        team_pids = [p.project_id for p in team_projects]
+        if team_pids:
+            Issue.query.filter(Issue.project_id.in_(team_pids), Issue.assigned_to == user_id).update(
+                {'assigned_to': None}, synchronize_session='fetch'
+            )
+
+    _log_activity(manager_id, 'member_removed',
+                  f'Removed employee "{target_user.name}" ({target_user.email}) from team "{old_team}"',
+                  entity_id=user_id)
+
+    db.session.commit()
+
+    return jsonify({
+        'message': f'Employee "{target_user.name}" removed from team successfully',
+        'user': target_user.to_dict()
+    }), 200
+

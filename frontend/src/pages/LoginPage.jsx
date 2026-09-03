@@ -50,7 +50,7 @@ function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
 
   const navigate = useNavigate()
-  const { login, register, teamLogin } = useAuth()
+  const { user, login, register, teamLogin } = useAuth()
 
   // Sync mode with URL query params
   useEffect(() => {
@@ -207,6 +207,36 @@ function LoginPage() {
             Register
           </button>
         </div>
+
+        {/* Active Session Notice */}
+        {user && (
+          <div
+            className="animate-fade-in"
+            style={{
+              padding: '10px 14px',
+              marginBottom: '1rem',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(99, 102, 241, 0.1)',
+              border: '1px solid rgba(99, 102, 241, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '0.84rem',
+            }}
+          >
+            <span>
+              Signed in as <strong>{user.name}</strong> ({user.role})
+            </span>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => navigate('/dashboard')}
+              style={{ fontSize: '0.78rem', padding: '4px 10px' }}
+            >
+              Go to Dashboard →
+            </button>
+          </div>
+        )}
 
         {/* Error Alert */}
         {error && (

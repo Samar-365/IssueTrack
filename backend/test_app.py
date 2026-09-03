@@ -259,6 +259,104 @@ class IssueTrackerTestCase(unittest.TestCase):
         for u in alpha_users:
             self.assertEqual(u['team_id'], 'TEAM-ALPHA')
 
+    def test_manager_remove_employee_from_team_and_project(self):
+        # Register an employee for TEAM-ALPHA
+        reg_res = self.client.post('/api/auth/register', json={
+            'name': 'Alpha Employee To Remove',
+            'email': 'alpha_remove_emp@test.com',
+            'password': 'Password123',
+            'role': 'employee',
+            'team_id': 'TEAM-ALPHA'
+        })
+        self.assertEqual(reg_res.status_code, 201)
+        removable_user_id = json.loads(reg_res.data)['user']['user_id']
+
+        # Alpha manager login
+        alpha_login = self.client.post('/api/auth/login', json={
+            'email': 'manager@test.com',
+            'password': 'ManagerPass123'
+        })
+        alpha_token = json.loads(alpha_login.data)['access_token']
+        alpha_headers = {'Authorization': f'Bearer {alpha_token}'}
+
+        # Alpha manager creates project
+        p_res = self.client.post('/api/projects', headers=alpha_headers, json={
+            'project_name': 'Alpha Removal Test Project'
+        })
+        self.assertEqual(p_res.status_code, 201)
+        proj_id = json.loads(p_res.data)['project']['project_id']
+
+        # Remove employee from project
+        proj_rem_res = self.client.delete(f'/api/projects/{proj_id}/members/{removable_user_id}', headers=alpha_headers)
+        self.assertEqual(proj_rem_res.status_code, 200)
+
+        # Register employee for team beta
+        beta_emp_res = self.client.post('/api/auth/register', json={
+            'name': 'Beta Employee',
+            'email': 'beta_emp_isolation@test.com',
+            'password': 'Password123',
+            'role': 'employee',
+            'team_id': 'TEAM-BETA'
+        })
+        beta_emp_id = json.loads(beta_emp_res.data)['user']['user_id']
+
+        # Alpha manager cannot remove Beta employee from team (403)
+        forbidden_res = self.client.post(f'/api/users/{beta_emp_id}/remove-from-team', headers=alpha_headers)
+        self.assertEqual(forbidden_res.status_code, 403)
+
+        # Alpha manager cannot remove themselves (400)
+        self_rem_res = self.client.post(f'/api/users/{self.manager_user.user_id}/remove-from-team', headers=alpha_headers)
+        self.assertEqual(self_rem_res.status_code, 400)
+
+        # Alpha manager removes alpha employee from team
+        team_rem_res = self.client.post(f'/api/users/{removable_user_id}/remove-from-team', headers=alpha_headers)
+        self.assertEqual(team_rem_res.status_code, 200)
+
+        # Verify employee no longer in team
+        user_dict = json.loads(team_rem_res.data)['user']
+        self.assertIsNone(user_dict['team_id'])
+
+    def test_employee_user_directory_read_only(self):
+        # Employee login
+        emp_login = self.client.post('/api/auth/login', json={
+            'email': 'employee@test.com',
+            'password': 'EmpPass123'
+        })
+        emp_token = json.loads(emp_login.data)['access_token']
+        emp_headers = {'Authorization': f'Bearer {emp_token}'}
+
+        # Employee can list users in their team (includes manager & teammates)
+        list_res = self.client.get('/api/users', headers=emp_headers)
+        self.assertEqual(list_res.status_code, 200)
+        team_users = json.loads(list_res.data)['users']
+        self.assertGreaterEqual(len(team_users), 2)
+        for u in team_users:
+            self.assertEqual(u['team_id'], 'TEAM-ALPHA')
+
+        # Employee cannot create a user (403)
+        create_res = self.client.post('/api/users', headers=emp_headers, json={
+            'name': 'Unauthorized User',
+            'email': 'unauth@test.com',
+            'password': 'Password123'
+        })
+        self.assertEqual(create_res.status_code, 403)
+
+        # Employee cannot edit a user (403)
+        edit_res = self.client.put(f'/api/users/{self.manager_user.user_id}', headers=emp_headers, json={
+            'name': 'Hacked Name'
+        })
+        self.assertEqual(edit_res.status_code, 403)
+
+        # Employee cannot delete a user (403)
+        del_res = self.client.delete(f'/api/users/{self.manager_user.user_id}', headers=emp_headers)
+        self.assertEqual(del_res.status_code, 403)
+
+        # Employee cannot toggle status (403)
+        status_res = self.client.patch(f'/api/users/{self.manager_user.user_id}/status', headers=emp_headers, json={
+            'is_active': False
+        })
+        self.assertEqual(status_res.status_code, 403)
+
     # 3. Project Management Module Tests
     def test_project_crud(self):
         # Create Project

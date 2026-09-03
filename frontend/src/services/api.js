@@ -52,12 +52,13 @@ export const authAPI = {
 
 // ---- User Management API helpers ----
 export const usersAPI = {
-  list:      (params)      => api.get('/users', { params }),
-  get:       (id)          => api.get(`/users/${id}`),
-  create:    (data)        => api.post('/users', data),
-  update:    (id, data)    => api.put(`/users/${id}`, data),
-  delete:    (id)          => api.delete(`/users/${id}`),
-  setStatus: (id, active)  => api.patch(`/users/${id}/status`, { is_active: active }),
+  list:           (params)      => api.get('/users', { params }),
+  get:            (id)          => api.get(`/users/${id}`),
+  create:         (data)        => api.post('/users', data),
+  update:         (id, data)    => api.put(`/users/${id}`, data),
+  delete:         (id)          => api.delete(`/users/${id}`),
+  setStatus:      (id, active)  => api.patch(`/users/${id}/status`, { is_active: active }),
+  removeFromTeam: (id)          => api.post(`/users/${id}/remove-from-team`),
 }
 
 // ---- Project Management API helpers ----
@@ -68,6 +69,7 @@ export const projectsAPI = {
   update:              (id, data)  => api.put(`/projects/${id}`, data),
   archive:             (id)        => api.patch(`/projects/${id}/archive`),
   members:             (id)        => api.get(`/projects/${id}/members`),
+  removeMember:        (projectId, userId) => api.delete(`/projects/${projectId}/members/${userId}`),
   getWebhookConfig:    (id)        => api.get(`/projects/${id}/webhook-config`),
   rotateWebhookSecret: (id)        => api.post(`/projects/${id}/rotate-webhook-secret`),
 }

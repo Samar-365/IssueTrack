@@ -15,6 +15,7 @@ import {
   HiOutlineBan,
   HiOutlineCheckCircle,
   HiOutlineTrash,
+  HiOutlineUserRemove,
   HiOutlineUsers,
   HiOutlineShieldCheck,
   HiOutlineBriefcase,
@@ -26,7 +27,7 @@ function UsersPage() {
   const { user: currentUser } = useAuth()
   const isAdmin = currentUser?.role === 'admin'
   const isManager = currentUser?.role === 'manager'
-  const canAccess = isAdmin || isManager
+  const isEmployee = currentUser?.role === 'employee'
 
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -109,25 +110,22 @@ function UsersPage() {
     }
   }
 
+  const handleRemoveFromTeam = async (user) => {
+    if (window.confirm(`Are you sure you want to remove employee "${user.name}" (${user.email}) from your team and projects?`)) {
+      try {
+        const res = await usersAPI.removeFromTeam(user.user_id)
+        addToast(res.data?.message || `Employee "${user.name}" removed from team successfully`, 'success')
+        fetchUsers()
+      } catch (err) {
+        const msg = err.response?.data?.error || 'Failed to remove employee from team'
+        addToast(msg, 'error')
+      }
+    }
+  }
+
   const openEdit = (user) => {
     setEditingUser(user)
     setModalMode('edit')
-  }
-
-  // ---- Permission check ----
-  if (!canAccess) {
-    return (
-      <div className="animate-fade-in" style={{ padding: '2rem' }}>
-        <div className="glass-card permission-denied">
-          <div className="permission-denied-icon">🔒</div>
-          <h3 className="permission-denied-title">Access Restricted</h3>
-          <p className="permission-denied-text">
-            User management is available to administrators and team managers only.
-            Contact your admin if you need access.
-          </p>
-        </div>
-      </div>
-    )
   }
 
   // ---- Format date ----
@@ -147,11 +145,15 @@ function UsersPage() {
       {/* Page Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">{isAdmin ? 'User Management' : 'Team Members'}</h1>
+          <h1 className="page-title">
+            {isAdmin ? 'User Management' : isManager ? 'Team Members' : 'Team Directory'}
+          </h1>
           <p className="page-subtitle">
             {isAdmin
               ? 'Create, edit, and manage system users'
-              : `View employees and members joined under Team ${currentUser?.team_id || ''}`}
+              : isManager
+              ? `Manage and view employees joined under Team ${currentUser?.team_id || ''}`
+              : `View your teammates and project manager in Team ${currentUser?.team_id || ''}`}
           </p>
         </div>
         {isAdmin && (
@@ -203,7 +205,7 @@ function UsersPage() {
               </div>
             </div>
           </>
-        ) : (
+        ) : isManager ? (
           <>
             <div className="users-stat-card">
               <div className="users-stat-icon amber">
@@ -212,6 +214,27 @@ function UsersPage() {
               <div>
                 <div className="users-stat-value">{stats.employees}</div>
                 <div className="users-stat-label">Employees</div>
+              </div>
+            </div>
+            <div className="users-stat-card">
+              <div className="users-stat-icon rose">
+                <HiOutlineShieldCheck />
+              </div>
+              <div>
+                <div className="users-stat-value" style={{ fontSize: '1.25rem' }}>{currentUser?.team_id || '—'}</div>
+                <div className="users-stat-label">Your Team ID</div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="users-stat-card">
+              <div className="users-stat-icon amber">
+                <HiOutlineBriefcase />
+              </div>
+              <div>
+                <div className="users-stat-value">{stats.managers}</div>
+                <div className="users-stat-label">Project Manager</div>
               </div>
             </div>
             <div className="users-stat-card">
@@ -265,7 +288,9 @@ function UsersPage() {
               ? 'Try adjusting your search or filters.'
               : isAdmin
               ? 'Create your first user to get started.'
-              : `No employees have joined team "${currentUser?.team_id || ''}" yet.`}
+              : isManager
+              ? `No employees have joined team "${currentUser?.team_id || ''}" yet.`
+              : `No other team members found for team "${currentUser?.team_id || ''}".`}
           </p>
         </div>
       ) : (
@@ -278,7 +303,7 @@ function UsersPage() {
                 <th>Role</th>
                 <th>Status</th>
                 <th>Created</th>
-                <th>{isAdmin ? 'Actions' : 'Status'}</th>
+                <th>{isAdmin ? 'Actions' : isManager ? 'Actions' : 'Member Info'}</th>
               </tr>
             </thead>
             <tbody>
@@ -344,10 +369,33 @@ function UsersPage() {
                           </>
                         )}
                       </div>
+                    ) : isManager ? (
+                      <div className="user-actions">
+                        {u.user_id === currentUser?.user_id ? (
+                          <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
+                            (You - Manager)
+                          </span>
+                        ) : (
+                          <button
+                            className="action-btn deactivate"
+                            title="Remove employee from team & projects"
+                            onClick={() => handleRemoveFromTeam(u)}
+                            style={{ color: 'var(--color-accent-rose)' }}
+                          >
+                            <HiOutlineUserRemove />
+                          </button>
+                        )}
+                      </div>
                     ) : (
-                      <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
-                        {u.user_id === currentUser?.user_id ? '(You)' : 'Team Member'}
-                      </span>
+                      <div style={{ fontSize: 'var(--font-size-sm)' }}>
+                        {u.user_id === currentUser?.user_id ? (
+                          <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>(You)</span>
+                        ) : u.role === 'manager' ? (
+                          <span className="badge badge-violet" style={{ fontSize: '0.72rem' }}>Project Manager</span>
+                        ) : (
+                          <span style={{ color: 'var(--color-text-muted)' }}>Teammate</span>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>

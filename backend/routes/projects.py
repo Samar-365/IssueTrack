@@ -435,6 +435,48 @@ def get_project_members(project_id):
 
 
 # --------------------------------------------------
+# DELETE /api/projects/<id>/members/<user_id> — Remove employee from project
+# --------------------------------------------------
+@projects_bp.route('/<int:project_id>/members/<int:user_id>', methods=['DELETE'])
+@manager_or_admin_required
+def remove_project_member(project_id, user_id):
+    """Remove an employee/member from a project and unassign issues."""
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    claims = get_jwt()
+    role = claims.get('role')
+    manager_id = int(get_jwt_identity())
+    current_user = User.query.get(manager_id)
+    user_team = (current_user.team_id if current_user else claims.get('team_id')) or ''
+
+    if role == 'manager':
+        is_same_team = project.team_id and user_team and (project.team_id.strip().lower() == user_team.strip().lower())
+        is_manager = (project.manager_id == manager_id or project.created_by == manager_id)
+        if not (is_same_team or is_manager):
+            return jsonify({'error': 'Access denied to manage members in this project'}), 403
+
+    target_user = User.query.get(user_id)
+    if not target_user:
+        return jsonify({'error': 'User not found'}), 404
+
+    if target_user.user_id == manager_id:
+        return jsonify({'error': 'You cannot remove yourself from the project'}), 400
+
+    from models.issue import Issue
+    # Unassign target user from all issues in this project
+    Issue.query.filter_by(project_id=project_id, assigned_to=user_id).update({'assigned_to': None})
+
+    _log_activity(manager_id, 'member_removed',
+                  f'Removed member "{target_user.name}" from project "{project.project_name}"',
+                  entity_id=project_id)
+    db.session.commit()
+
+    return jsonify({'message': f'Member "{target_user.name}" removed from project successfully'}), 200
+
+
+# --------------------------------------------------
 # GET /api/projects/<id>/webhook-config — Get GitHub Webhook Config
 # --------------------------------------------------
 @projects_bp.route('/<int:project_id>/webhook-config', methods=['GET'])
