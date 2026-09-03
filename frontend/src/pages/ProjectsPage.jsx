@@ -6,6 +6,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { projectsAPI } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import ProjectFormModal from '../components/ProjectFormModal'
+import GitHubWebhookModal from '../components/GitHubWebhookModal'
+import ProjectMembersModal from '../components/ProjectMembersModal'
 import { useToast, ToastContainer } from '../components/Toast'
 import {
   HiOutlinePlus,
@@ -16,12 +18,15 @@ import {
   HiOutlineCalendar,
   HiOutlineUser,
   HiOutlineFolder,
+  HiOutlineCode,
+  HiOutlineUsers,
 } from 'react-icons/hi'
 import './ProjectsPage.css'
 
 export default function ProjectsPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'manager'
 
   // State
   const [projects, setProjects] = useState([])
@@ -33,6 +38,8 @@ export default function ProjectsPage() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
+  const [webhookProject, setWebhookProject] = useState(null)
+  const [membersProject, setMembersProject] = useState(null)
 
   // Toast
   const { toasts, addToast, removeToast } = useToast()
@@ -125,7 +132,7 @@ export default function ProjectsPage() {
           <h1 className="page-title">Projects</h1>
           <p className="page-subtitle">Manage and track your projects</p>
         </div>
-        {isAdmin && (
+        {isManagerOrAdmin && (
           <button className="btn btn-primary" onClick={openCreate} id="create-project-btn">
             <HiOutlinePlus /> New Project
           </button>
@@ -211,12 +218,12 @@ export default function ProjectsPage() {
           <p className="empty-state-text">
             {search
               ? 'Try adjusting your search or filter criteria.'
-              : isAdmin
+              : isManagerOrAdmin
                 ? 'Create your first project to get started with issue tracking.'
                 : 'No projects are available for your account yet.'
             }
           </p>
-          {!search && isAdmin && (
+          {!search && isManagerOrAdmin && (
             <button
               className="btn btn-primary"
               onClick={openCreate}
@@ -238,7 +245,14 @@ export default function ProjectsPage() {
             >
               {/* Card Header */}
               <div className="project-card-header">
-                <h3 className="project-card-name">{project.project_name}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h3 className="project-card-name">{project.project_name}</h3>
+                  {project.team_id && (
+                    <span className="badge badge-violet" style={{ fontSize: '0.72rem' }}>
+                      Team: {project.team_id}
+                    </span>
+                  )}
+                </div>
                 <span className={`badge ${project.status === 'active' ? 'badge-emerald' : 'badge-slate'}`}>
                   {project.status === 'active' ? 'Active' : 'Archived'}
                 </span>
@@ -299,36 +313,74 @@ export default function ProjectsPage() {
                     </span>
                   )}
                 </div>
-                {isAdmin && (
-                  <div className="project-card-actions">
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => openEdit(project)}
-                      title="Edit project"
-                    >
-                      <HiOutlinePencil />
-                    </button>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => handleArchive(project)}
-                      title={project.status === 'active' ? 'Archive project' : 'Restore project'}
-                    >
-                      {project.status === 'active' ? <HiOutlineArchive /> : <HiOutlineRefresh />}
-                    </button>
-                  </div>
-                )}
+                <div className="project-card-actions">
+                  {isManagerOrAdmin && (
+                    <>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setMembersProject(project)}
+                        title="View & Manage Project Members"
+                        style={{ color: 'var(--color-accent-violet)' }}
+                      >
+                        <HiOutlineUsers />
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setWebhookProject(project)}
+                        title="GitHub Webhook Integration"
+                        style={{ color: 'var(--color-primary)' }}
+                      >
+                        <HiOutlineCode />
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => openEdit(project)}
+                        title="Edit project"
+                      >
+                        <HiOutlinePencil />
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => handleArchive(project)}
+                        title={project.status === 'active' ? 'Archive project' : 'Restore project'}
+                      >
+                        {project.status === 'active' ? <HiOutlineArchive /> : <HiOutlineRefresh />}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modals */}
       <ProjectFormModal
         isOpen={modalOpen}
         onClose={closeModal}
         onSubmit={editingProject ? handleEdit : handleCreate}
         project={editingProject}
+      />
+
+      <GitHubWebhookModal
+        isOpen={Boolean(webhookProject)}
+        onClose={() => setWebhookProject(null)}
+        project={webhookProject}
+        onSecretRotated={(newSecret) => {
+          addToast('Webhook secret rotated successfully', 'success')
+          fetchProjects()
+        }}
+      />
+
+      <ProjectMembersModal
+        isOpen={Boolean(membersProject)}
+        onClose={() => setMembersProject(null)}
+        project={membersProject}
+        onMemberRemoved={(member) => {
+          addToast(`Member "${member.name}" removed from project`, 'success')
+          fetchProjects()
+        }}
       />
     </div>
   )

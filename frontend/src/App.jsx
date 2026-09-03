@@ -96,9 +96,16 @@ function Sidebar() {
           </div>
           <div>
             <p className="sidebar-user-name">{user?.name || 'User'}</p>
-            <p className="sidebar-user-role">
-              {user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Unknown'}
-            </p>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>
+              <p className="sidebar-user-role" style={{ margin: 0 }}>
+                {user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Unknown'}
+              </p>
+              {user?.team_id && (
+                <span className="badge badge-violet" style={{ fontSize: '0.65rem', padding: '1px 5px' }}>
+                  {user.team_id}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <button className="sidebar-logout-btn" onClick={handleLogout} title="Sign out">
@@ -149,6 +156,11 @@ function Header() {
 
         <NotificationDropdown />
 
+        {user?.team_id && (
+          <span className="badge badge-violet" style={{ fontSize: '0.75rem' }}>
+            Team: {user.team_id}
+          </span>
+        )}
         <span className="badge badge-emerald">{user?.role ? user.role.toUpperCase() : 'v1.0'}</span>
       </div>
     </header>
@@ -185,7 +197,9 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<Navigate to="/login?mode=register" replace />} />
           <Route
             path="/*"
             element={

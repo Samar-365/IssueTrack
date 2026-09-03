@@ -22,6 +22,8 @@ const ACTION_LABELS = {
   project_archived: 'Archived project',
   user_created: 'Created user',
   user_updated: 'Updated user',
+  github_commit_linked: 'Linked GitHub commit',
+  github_pr_linked: 'Linked GitHub Pull Request',
 }
 
 const ACTION_ICON_NAMES = {
@@ -38,6 +40,8 @@ const ACTION_ICON_NAMES = {
   project_archived: 'archive',
   user_created: 'group',
   user_updated: 'wrench',
+  github_commit_linked: 'lightning',
+  github_pr_linked: 'check',
 }
 
 const ENTITY_BADGE = {

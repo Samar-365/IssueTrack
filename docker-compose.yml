@@ -16,7 +16,7 @@ services:
     volumes:
       - backend_data:/app/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5005/api/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:5005/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3

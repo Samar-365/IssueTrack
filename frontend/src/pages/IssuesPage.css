@@ -385,6 +385,41 @@
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+/* --- GitHub Action Button & Badge --- */
+.gh-action-btn {
+  position: relative;
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+
+.gh-action-btn:hover {
+  color: #fafafa;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.gh-action-btn.has-gh-events {
+  color: #60a5fa;
+}
+
+.gh-event-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: #3b82f6;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.4);
+}
+
 /* --- Responsive --- */
 @media (max-width: 1024px) {
   .issues-table th:nth-child(6),

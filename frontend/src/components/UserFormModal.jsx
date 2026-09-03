@@ -18,6 +18,7 @@ function UserFormModal({ mode = 'create', user = null, onClose, onSubmit }) {
     name: '',
     email: '',
     password: '',
+    team_id: '',
     role: 'employee',
   })
   const [errors, setErrors] = useState({})
@@ -30,6 +31,7 @@ function UserFormModal({ mode = 'create', user = null, onClose, onSubmit }) {
         name: user.name || '',
         email: user.email || '',
         password: '',
+        team_id: user.team_id || '',
         role: user.role || 'employee',
       })
     }
@@ -72,6 +74,7 @@ function UserFormModal({ mode = 'create', user = null, onClose, onSubmit }) {
       const payload = {
         name: formData.name.trim(),
         email: formData.email.trim(),
+        team_id: formData.team_id.trim().toUpperCase() || null,
         role: formData.role,
       }
       if (formData.password) {
@@ -160,6 +163,20 @@ function UserFormModal({ mode = 'create', user = null, onClose, onSubmit }) {
               onChange={handleChange}
             />
             {errors.password && <span className="form-error">{errors.password}</span>}
+          </div>
+
+          {/* Team ID */}
+          <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
+            <label className="form-label" htmlFor="user-team">Team ID / Code</label>
+            <input
+              id="user-team"
+              name="team_id"
+              type="text"
+              className="form-input"
+              placeholder="e.g. TEAM-ALPHA, DEV-01"
+              value={formData.team_id}
+              onChange={handleChange}
+            />
           </div>
 
           {/* Role */}

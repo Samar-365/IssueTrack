@@ -10,6 +10,7 @@ import {
   HiOutlineFolder,
   HiOutlineClock,
 } from 'react-icons/hi'
+import { FaGithub } from 'react-icons/fa6'
 import PixelIcon from './PixelIcon'
 import './KanbanBoard.css'
 
@@ -42,6 +43,7 @@ export default function KanbanBoard({
   onEdit,
   onDelete,
   onOpenComments,
+  onOpenGitHubEvents,
   isManagerOrAdmin,
   readCommentsMap = {},
 }) {
@@ -175,6 +177,21 @@ export default function KanbanBoard({
                         )}
 
                         <div className="kanban-card-actions">
+                          {/* GitHub Button */}
+                          {onOpenGitHubEvents && (
+                            <button
+                              className={`btn btn-ghost btn-xs gh-action-btn ${(issue.github_event_count || 0) > 0 ? 'has-gh-events' : ''}`}
+                              onClick={() => onOpenGitHubEvents(issue)}
+                              title={(issue.github_event_count || 0) > 0 ? `${issue.github_event_count} linked GitHub event(s)` : "View GitHub activity"}
+                              style={{ position: 'relative' }}
+                            >
+                              <FaGithub />
+                              {(issue.github_event_count || 0) > 0 && (
+                                <span className="gh-event-badge">{issue.github_event_count}</span>
+                              )}
+                            </button>
+                          )}
+
                           {(() => {
                             const readCount = readCommentsMap[issue.issue_id] || 0
                             const unreadCount = Math.max(0, (issue.comment_count || 0) - readCount)

@@ -69,18 +69,36 @@ STATUS_BADGE = {
 def list_issues():
     """
     Return issues visible to the current user.
-    Admins & Managers see all issues.
-    Employees see only issues assigned to them.
+    Admins see all issues (or can filter by project).
+    Managers & Employees see issues belonging to their team projects or assigned to them.
     """
     claims = get_jwt()
     role = claims.get('role')
     current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
 
     query = Issue.query
 
-    # Employees can only see their assigned issues
-    if role == 'employee':
-        query = query.filter_by(assigned_to=current_user_id)
+    # Scoping by team
+    if role in ('manager', 'employee'):
+        if user_team:
+            team_project_ids = db.session.query(Project.project_id).filter(
+                db.or_(
+                    Project.team_id == user_team,
+                    Project.manager_id == current_user_id,
+                    Project.created_by == current_user_id
+                )
+            ).subquery()
+            query = query.filter(
+                db.or_(
+                    Issue.project_id.in_(team_project_ids),
+                    Issue.assigned_to == current_user_id,
+                    Issue.created_by == current_user_id
+                )
+            )
+        elif role == 'employee':
+            query = query.filter_by(assigned_to=current_user_id)
 
     # ---- Filters ----
     project_id = request.args.get('project_id')
@@ -151,11 +169,16 @@ def get_issue(issue_id):
     if not issue:
         return jsonify({'error': 'Issue not found'}), 404
 
-    # Employees can only view issues assigned to them
     claims = get_jwt()
-    if claims.get('role') == 'employee':
-        current_user_id = int(get_jwt_identity())
-        if issue.assigned_to != current_user_id:
+    role = claims.get('role')
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
+    if role in ('manager', 'employee'):
+        is_same_team = (issue.project and issue.project.team_id and issue.project.team_id == user_team)
+        is_assigned_or_creator = (issue.assigned_to == current_user_id or issue.created_by == current_user_id)
+        if not (is_same_team or is_assigned_or_creator):
             return jsonify({'error': 'Access denied'}), 403
 
     return jsonify({'issue': issue.to_dict()}), 200
@@ -169,6 +192,12 @@ def get_issue(issue_id):
 def create_issue():
     """Create a new issue. Manager/Admin only."""
     data = request.get_json()
+
+    claims = get_jwt()
+    role = claims.get('role')
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
 
     # --- Validate required fields ---
     errors = []
@@ -190,6 +219,11 @@ def create_issue():
             errors.append('Selected project not found')
         elif project.status == 'archived':
             errors.append('Cannot create issues in an archived project')
+        elif role == 'manager':
+            is_same_team = (project.team_id and project.team_id == user_team)
+            is_project_manager = (project.manager_id == current_user_id or project.created_by == current_user_id)
+            if not (is_same_team or is_project_manager):
+                errors.append('You can only create issues for projects in your team')
 
     priority = (data.get('priority') or 'medium').strip().lower()
     if priority not in Issue.PRIORITY_LEVELS:
@@ -442,8 +476,21 @@ def delete_issue(issue_id):
 @issues_bp.route('/assignees', methods=['GET'])
 @jwt_required()
 def get_assignees():
-    """Return list of active users who can be assigned issues."""
-    users = User.query.filter_by(is_active=True).order_by(User.name).all()
+    """Return list of active users who can be assigned issues (scoped to user's team)."""
+    claims = get_jwt()
+    role = claims.get('role')
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
+    if user_team and role != 'admin':
+        users = User.query.filter(
+            User.is_active == True,
+            User.team_id == user_team
+        ).order_by(User.name).all()
+    else:
+        users = User.query.filter_by(is_active=True).order_by(User.name).all()
+
     return jsonify({
         'assignees': [u.to_dict() for u in users],
     }), 200
@@ -459,9 +506,27 @@ def issue_stats():
     claims = get_jwt()
     role = claims.get('role')
     current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
 
     base_query = Issue.query
-    if role == 'employee':
+    if role in ('manager', 'employee') and user_team:
+        team_project_ids = db.session.query(Project.project_id).filter(
+            db.or_(
+                Project.team_id == user_team,
+                Project.manager_id == current_user_id
+            )
+        ).subquery()
+        if role == 'employee':
+            base_query = base_query.filter(
+                db.or_(
+                    Issue.project_id.in_(team_project_ids),
+                    Issue.assigned_to == current_user_id
+                )
+            )
+        else:
+            base_query = base_query.filter(Issue.project_id.in_(team_project_ids))
+    elif role == 'employee':
         base_query = base_query.filter_by(assigned_to=current_user_id)
 
     total = base_query.count()

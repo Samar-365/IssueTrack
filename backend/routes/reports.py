@@ -36,7 +36,19 @@ def issue_report():
     if not _admin_or_manager_required():
         return jsonify({'error': 'Manager or Admin access required'}), 403
 
+    claims = get_jwt()
+    role = claims.get('role')
+    user_id = int(claims.get('sub'))
+    current_user = User.query.get(user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
     query = Issue.query
+
+    if role == 'manager' and user_team:
+        team_project_ids = db.session.query(Project.project_id).filter(
+            db.or_(Project.team_id == user_team, Project.manager_id == user_id)
+        ).subquery()
+        query = query.filter(Issue.project_id.in_(team_project_ids))
 
     # Filters
     project_id = request.args.get('project_id')
@@ -111,7 +123,17 @@ def performance_report():
     if not _admin_or_manager_required():
         return jsonify({'error': 'Manager or Admin access required'}), 403
 
-    users = User.query.filter_by(is_active=True).order_by(User.name).all()
+    claims = get_jwt()
+    role = claims.get('role')
+    user_id = int(claims.get('sub'))
+    current_user = User.query.get(user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
+    if role == 'manager' and user_team:
+        users = User.query.filter(User.is_active == True, User.team_id == user_team).order_by(User.name).all()
+    else:
+        users = User.query.filter_by(is_active=True).order_by(User.name).all()
+
     today = date.today()
 
     employee_data = []
@@ -172,7 +194,18 @@ def project_report():
     if not _admin_or_manager_required():
         return jsonify({'error': 'Manager or Admin access required'}), 403
 
-    projects = Project.query.order_by(Project.project_name).all()
+    claims = get_jwt()
+    role = claims.get('role')
+    user_id = int(claims.get('sub'))
+    current_user = User.query.get(user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
+    if role == 'manager' and user_team:
+        projects = Project.query.filter(
+            db.or_(Project.team_id == user_team, Project.manager_id == user_id)
+        ).order_by(Project.project_name).all()
+    else:
+        projects = Project.query.order_by(Project.project_name).all()
     today = date.today()
 
     project_data = []
@@ -232,13 +265,25 @@ def export_report(report_type):
     if not _admin_or_manager_required():
         return jsonify({'error': 'Manager or Admin access required'}), 403
 
+    claims = get_jwt()
+    role = claims.get('role')
+    user_id = int(claims.get('sub'))
+    current_user = User.query.get(user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
+
     output = io.StringIO()
     writer = csv.writer(output)
     today = date.today()
 
     if report_type == 'issues':
         writer.writerow(['Issue ID', 'Title', 'Project', 'Assigned To', 'Priority', 'Status', 'Due Date', 'Overdue', 'Created At'])
-        issues = Issue.query.order_by(Issue.created_at.desc()).all()
+        query = Issue.query
+        if role == 'manager' and user_team:
+            team_project_ids = db.session.query(Project.project_id).filter(
+                db.or_(Project.team_id == user_team, Project.manager_id == user_id)
+            ).subquery()
+            query = query.filter(Issue.project_id.in_(team_project_ids))
+        issues = query.order_by(Issue.created_at.desc()).all()
         for issue in issues:
             assignee = User.query.get(issue.assigned_to) if issue.assigned_to else None
             project = Project.query.get(issue.project_id) if issue.project_id else None
@@ -261,7 +306,10 @@ def export_report(report_type):
 
     elif report_type == 'performance':
         writer.writerow(['Name', 'Email', 'Role', 'Assigned', 'Resolved', 'In Progress', 'Overdue', 'Resolution Rate %', 'Comments'])
-        users = User.query.filter_by(is_active=True).order_by(User.name).all()
+        if role == 'manager' and user_team:
+            users = User.query.filter(User.is_active == True, User.team_id == user_team).order_by(User.name).all()
+        else:
+            users = User.query.filter_by(is_active=True).order_by(User.name).all()
         for user in users:
             assigned = Issue.query.filter_by(assigned_to=user.user_id)
             total_assigned = assigned.count()
@@ -281,7 +329,12 @@ def export_report(report_type):
 
     elif report_type == 'projects':
         writer.writerow(['Project', 'Status', 'Total Issues', 'Resolved', 'Open', 'Testing', 'Overdue', 'Progress %', 'Team Size'])
-        projects = Project.query.order_by(Project.project_name).all()
+        if role == 'manager' and user_team:
+            projects = Project.query.filter(
+                db.or_(Project.team_id == user_team, Project.manager_id == user_id)
+            ).order_by(Project.project_name).all()
+        else:
+            projects = Project.query.order_by(Project.project_name).all()
         for p in projects:
             p_issues = Issue.query.filter_by(project_id=p.project_id)
             total = p_issues.count()
@@ -323,6 +376,12 @@ def export_pdf_report(report_type):
     """Export a report as a styled PDF document."""
     if not _admin_or_manager_required():
         return jsonify({'error': 'Manager or Admin access required'}), 403
+
+    claims = get_jwt()
+    role = claims.get('role')
+    user_id = int(claims.get('sub'))
+    current_user = User.query.get(user_id)
+    user_team = current_user.team_id if current_user else claims.get('team_id')
 
     from reportlab.lib.pagesizes import letter, landscape
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -380,7 +439,13 @@ def export_pdf_report(report_type):
         headers = ['ID', 'Title', 'Project', 'Assignee', 'Priority', 'Status', 'Due Date']
         table_data = [[Paragraph(h, header_style) for h in headers]]
 
-        issues = Issue.query.order_by(Issue.created_at.desc()).all()
+        query = Issue.query
+        if role == 'manager' and user_team:
+            team_project_ids = db.session.query(Project.project_id).filter(
+                db.or_(Project.team_id == user_team, Project.manager_id == user_id)
+            ).subquery()
+            query = query.filter(Issue.project_id.in_(team_project_ids))
+        issues = query.order_by(Issue.created_at.desc()).all()
         for issue in issues:
             assignee = User.query.get(issue.assigned_to) if issue.assigned_to else None
             project = Project.query.get(issue.project_id) if issue.project_id else None
@@ -414,7 +479,10 @@ def export_pdf_report(report_type):
         headers = ['Employee', 'Role', 'Assigned', 'Resolved', 'In Progress', 'Overdue', 'Resolution Rate', 'Comments']
         table_data = [[Paragraph(h, header_style) for h in headers]]
 
-        users = User.query.filter_by(is_active=True).order_by(User.name).all()
+        if role == 'manager' and user_team:
+            users = User.query.filter(User.is_active == True, User.team_id == user_team).order_by(User.name).all()
+        else:
+            users = User.query.filter_by(is_active=True).order_by(User.name).all()
         for u in users:
             assigned = Issue.query.filter_by(assigned_to=u.user_id)
             total = assigned.count()
@@ -455,7 +523,12 @@ def export_pdf_report(report_type):
         headers = ['Project Name', 'Status', 'Total Issues', 'Resolved', 'Open', 'Overdue', 'Progress', 'Team Size']
         table_data = [[Paragraph(h, header_style) for h in headers]]
 
-        projects = Project.query.order_by(Project.project_name).all()
+        if role == 'manager' and user_team:
+            projects = Project.query.filter(
+                db.or_(Project.team_id == user_team, Project.manager_id == user_id)
+            ).order_by(Project.project_name).all()
+        else:
+            projects = Project.query.order_by(Project.project_name).all()
         for p in projects:
             p_issues = Issue.query.filter_by(project_id=p.project_id)
             total = p_issues.count()

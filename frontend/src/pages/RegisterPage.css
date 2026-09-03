@@ -1,0 +1,43 @@
+/* ========================================
+   REGISTER PAGE — Sign Up Form Styles
+   ======================================== */
+
+.register-container {
+  max-width: 460px;
+  padding: 2.25rem 2.5rem;
+}
+
+.register-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+.register-footer {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border);
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.register-footer p {
+  margin: 0;
+}
+
+.register-link {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.register-link:hover {
+  text-decoration: underline;
+  color: var(--color-primary-hover, #2563eb);
+}

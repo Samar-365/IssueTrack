@@ -4,8 +4,10 @@
  */
 import { useState, useEffect } from 'react'
 import { usersAPI } from '../services/api'
+import { useAuth } from '../context/AuthContext'
 
 export default function ProjectFormModal({ isOpen, onClose, onSubmit, project }) {
+  const { user } = useAuth()
   const isEdit = Boolean(project)
 
   const [form, setForm] = useState({
@@ -13,7 +15,9 @@ export default function ProjectFormModal({ isOpen, onClose, onSubmit, project })
     description: '',
     start_date: '',
     end_date: '',
+    team_id: '',
     manager_id: '',
+    github_repo: '',
   })
   const [managers, setManagers] = useState([])
   const [errors, setErrors] = useState({})
@@ -27,7 +31,9 @@ export default function ProjectFormModal({ isOpen, onClose, onSubmit, project })
         description: project.description || '',
         start_date: project.start_date || '',
         end_date: project.end_date || '',
+        team_id: project.team_id || user?.team_id || '',
         manager_id: project.manager_id || '',
+        github_repo: project.github_repo || '',
       })
     } else {
       setForm({
@@ -35,11 +41,13 @@ export default function ProjectFormModal({ isOpen, onClose, onSubmit, project })
         description: '',
         start_date: '',
         end_date: '',
-        manager_id: '',
+        team_id: user?.team_id || '',
+        manager_id: user?.role === 'manager' ? user.user_id : '',
+        github_repo: '',
       })
     }
     setErrors({})
-  }, [project, isOpen])
+  }, [project, isOpen, user])
 
   // Fetch managers list
   useEffect(() => {
@@ -183,6 +191,22 @@ export default function ProjectFormModal({ isOpen, onClose, onSubmit, project })
             </div>
           </div>
 
+          {/* Team ID */}
+          <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
+            <label className="form-label" htmlFor="project-team">
+              Team ID / Code <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontWeight: 'normal' }}>(e.g. TEAM-ALPHA)</span>
+            </label>
+            <input
+              id="project-team"
+              className="form-input"
+              type="text"
+              name="team_id"
+              value={form.team_id}
+              onChange={handleChange}
+              placeholder="e.g. TEAM-ALPHA"
+            />
+          </div>
+
           {/* Manager */}
           <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
             <label className="form-label" htmlFor="project-manager">Assigned Manager</label>
@@ -200,6 +224,22 @@ export default function ProjectFormModal({ isOpen, onClose, onSubmit, project })
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* GitHub Repository */}
+          <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
+            <label className="form-label" htmlFor="project-github-repo">
+              GitHub Repository <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontWeight: 'normal' }}>(optional, e.g. username/repo)</span>
+            </label>
+            <input
+              id="project-github-repo"
+              className="form-input"
+              type="text"
+              name="github_repo"
+              value={form.github_repo}
+              onChange={handleChange}
+              placeholder="e.g. Samar-365/IssueTrack"
+            />
           </div>
 
           {/* Submit Error */}
