@@ -15,6 +15,7 @@ import {
   HiOutlineUserGroup,
   HiOutlineExclamationCircle,
   HiOutlineInformationCircle,
+  HiOutlineKey,
 } from 'react-icons/hi'
 import PixelIcon from '../components/PixelIcon'
 import './LoginPage.css'
@@ -35,6 +36,7 @@ function LoginPage() {
   // Team login form state (Direct employee login)
   const [teamLoginId, setTeamLoginId] = useState('')
   const [teamLoginName, setTeamLoginName] = useState('')
+  const [teamLoginEmail, setTeamLoginEmail] = useState('')
 
   // Register form state
   const [regName, setRegName] = useState('')
@@ -100,13 +102,21 @@ function LoginPage() {
       setError('Please enter your unique Team ID')
       return
     }
+    if (!teamLoginName.trim()) {
+      setError('Please enter your full name as registered by your manager')
+      return
+    }
+    if (!teamLoginEmail.trim()) {
+      setError('Please enter your email address')
+      return
+    }
 
     setIsLoading(true)
     try {
-      await teamLogin(teamLoginId.trim().toUpperCase(), teamLoginName.trim())
+      await teamLogin(teamLoginId.trim().toUpperCase(), teamLoginName.trim(), teamLoginEmail.trim().toLowerCase())
       navigate('/dashboard', { replace: true })
     } catch (err) {
-      const msg = err.response?.data?.error || 'Team login failed. Please check your Team ID.'
+      const msg = err.response?.data?.error || 'Team login failed. Please check your details.'
       setError(msg)
     } finally {
       setIsLoading(false)
@@ -170,10 +180,10 @@ function LoginPage() {
           <h1 className="login-title">IssueTracker</h1>
           <p className="login-subtitle">
             {mode === 'login'
-              ? 'Sign in to your account'
+              ? 'Sign in with Manager or Admin credentials'
               : mode === 'team'
-                ? 'Direct employee access with Team ID'
-                : 'Create a new team workspace'}
+                ? 'Employee workspace access via Team ID'
+                : 'Register a new team as Project Manager'}
           </p>
         </div>
 
@@ -186,7 +196,7 @@ function LoginPage() {
             className={`auth-tab-btn ${mode === 'login' ? 'active' : ''}`}
             onClick={() => switchMode('login')}
           >
-            Sign In
+            Manager/Admin Sign In
           </button>
           <button
             type="button"
@@ -195,7 +205,7 @@ function LoginPage() {
             className={`auth-tab-btn ${mode === 'team' ? 'active' : ''}`}
             onClick={() => switchMode('team')}
           >
-            Team ID Access
+            Team Access
           </button>
           <button
             type="button"
@@ -204,7 +214,7 @@ function LoginPage() {
             className={`auth-tab-btn ${mode === 'register' ? 'active' : ''}`}
             onClick={() => switchMode('register')}
           >
-            Register
+            Team Register
           </button>
         </div>
 
@@ -240,7 +250,7 @@ function LoginPage() {
 
         {/* Error Alert */}
         {error && (
-          <div className="login-error animate-fade-in">
+          <div className="login-error animate-fade-in" role="alert">
             <HiOutlineExclamationCircle className="login-error-icon" />
             <span>{error}</span>
           </div>
@@ -250,14 +260,14 @@ function LoginPage() {
         {mode === 'login' && (
           <form className="login-form animate-fade-in" onSubmit={handleLoginSubmit}>
             <div className="login-field">
-              <label className="login-label" htmlFor="login-email">Email</label>
+              <label className="login-label" htmlFor="login-email">Email Address</label>
               <div className="login-input-wrapper">
                 <HiOutlineMail className="login-input-icon" />
                 <input
                   id="login-email"
                   type="email"
                   className="login-input"
-                  placeholder="admin@admin.com"
+                  placeholder="manager@company.com"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   autoComplete="email"
@@ -314,32 +324,32 @@ function LoginPage() {
               style={{
                 display: 'flex',
                 alignItems: 'flex-start',
-                gap: '10px',
-                padding: '12px 14px',
-                background: 'var(--color-bg-primary)',
-                border: '1px solid var(--color-border)',
+                gap: '8px',
+                padding: '10px 12px',
+                background: 'rgba(99, 102, 241, 0.08)',
+                border: '1px solid rgba(99, 102, 241, 0.2)',
                 borderRadius: 'var(--radius-md, 8px)',
                 fontSize: '0.8rem',
                 color: 'var(--color-text-secondary)',
                 lineHeight: '1.4',
-                marginBottom: '1.25rem',
+                marginBottom: '1rem',
               }}
             >
-              <HiOutlineInformationCircle style={{ color: 'var(--color-primary)', fontSize: '1.3rem', flexShrink: 0, marginTop: '2px' }} />
+              <HiOutlineInformationCircle style={{ color: 'var(--color-primary)', fontSize: '1.2rem', flexShrink: 0, marginTop: '2px' }} />
               <span>
-                <strong>Confidential Workspace Access:</strong> Only employees with the confidential Team ID provided directly by their Project Manager can enter and access team projects.
+                Your Project Manager must first add your Full Name and Email in the <strong>Users</strong> section before you can enter.
               </span>
             </div>
 
             <div className="login-field">
-              <label className="login-label" htmlFor="team-login-id">Confidential Team ID / Code</label>
+              <label className="login-label" htmlFor="team-login-id">Team ID / Code</label>
               <div className="login-input-wrapper">
-                <HiOutlineUserGroup className="login-input-icon" />
+                <HiOutlineKey className="login-input-icon" />
                 <input
                   id="team-login-id"
                   type="text"
                   className="login-input"
-                  placeholder="e.g. TEAM-ALPHA-99"
+                  placeholder="e.g. TEAM-ALPHA, DEV-01"
                   value={teamLoginId}
                   onChange={(e) => setTeamLoginId(e.target.value)}
                   autoComplete="off"
@@ -349,7 +359,7 @@ function LoginPage() {
             </div>
 
             <div className="login-field">
-              <label className="login-label" htmlFor="team-login-name">Your Name</label>
+              <label className="login-label" htmlFor="team-login-name">Your Full Name</label>
               <div className="login-input-wrapper">
                 <HiOutlineUser className="login-input-icon" />
                 <input
@@ -364,6 +374,22 @@ function LoginPage() {
               </div>
             </div>
 
+            <div className="login-field">
+              <label className="login-label" htmlFor="team-login-email">Your Email Address</label>
+              <div className="login-input-wrapper">
+                <HiOutlineMail className="login-input-icon" />
+                <input
+                  id="team-login-email"
+                  type="email"
+                  className="login-input"
+                  placeholder="alex@company.com"
+                  value={teamLoginEmail}
+                  onChange={(e) => setTeamLoginEmail(e.target.value)}
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
             <button
               type="submit"
               className="login-submit-btn"
@@ -372,7 +398,7 @@ function LoginPage() {
               {isLoading ? (
                 <span className="login-btn-loading">
                   <span className="login-spinner" />
-                  Connecting to Team...
+                  Accessing Workspace...
                 </span>
               ) : (
                 'Enter Workspace'
@@ -384,6 +410,27 @@ function LoginPage() {
         {/* 3. REGISTER FORM */}
         {mode === 'register' && (
           <form className="login-form animate-fade-in" onSubmit={handleRegisterSubmit}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+                padding: '10px 12px',
+                background: 'rgba(99, 102, 241, 0.08)',
+                border: '1px solid rgba(99, 102, 241, 0.2)',
+                borderRadius: 'var(--radius-md, 8px)',
+                fontSize: '0.8rem',
+                color: 'var(--color-text-secondary)',
+                lineHeight: '1.4',
+                marginBottom: '1rem',
+              }}
+            >
+              <HiOutlineInformationCircle style={{ color: 'var(--color-primary)', fontSize: '1.2rem', flexShrink: 0, marginTop: '2px' }} />
+              <span>
+                Registering creates a new team workspace and sets you as the <strong>Project Manager</strong>.
+              </span>
+            </div>
+
             <div className="login-field">
               <label className="login-label" htmlFor="register-name">Full Name</label>
               <div className="login-input-wrapper">
@@ -392,7 +439,7 @@ function LoginPage() {
                   id="register-name"
                   type="text"
                   className="login-input"
-                  placeholder="Alex Mercer"
+                  placeholder="Jane Smith"
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
                   autoComplete="name"
@@ -409,7 +456,7 @@ function LoginPage() {
                   id="register-email"
                   type="email"
                   className="login-input"
-                  placeholder="alex@company.com"
+                  placeholder="jane@company.com"
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   autoComplete="email"
@@ -420,7 +467,7 @@ function LoginPage() {
             <div className="login-field">
               <label className="login-label" htmlFor="register-team">Team ID / Code</label>
               <div className="login-input-wrapper">
-                <HiOutlineUserGroup className="login-input-icon" />
+                <HiOutlineKey className="login-input-icon" />
                 <input
                   id="register-team"
                   type="text"
@@ -430,22 +477,6 @@ function LoginPage() {
                   onChange={(e) => setRegTeamId(e.target.value)}
                   autoComplete="off"
                 />
-              </div>
-            </div>
-
-            <div className="login-field">
-              <label className="login-label" htmlFor="register-role">Workspace Role</label>
-              <div className="login-input-wrapper">
-                <HiOutlineUserGroup className="login-input-icon" />
-                <select
-                  id="register-role"
-                  className="login-input register-select"
-                  value={regRole}
-                  onChange={(e) => setRole(e.target.value)}
-                >
-                  <option value="manager">Project Manager (Creates & Manages Team)</option>
-                  <option value="employee">Employee / Developer</option>
-                </select>
               </div>
             </div>
 
@@ -497,10 +528,10 @@ function LoginPage() {
               {isLoading ? (
                 <span className="login-btn-loading">
                   <span className="login-spinner" />
-                  Creating account...
+                  Registering Team...
                 </span>
               ) : (
-                'Create Workspace'
+                'Register Team Workspace'
               )}
             </button>
           </form>
@@ -511,35 +542,35 @@ function LoginPage() {
           <p style={{ marginBottom: '0.5rem' }}>
             {mode === 'login' ? (
               <>
-                Are you an employee?{' '}
+                Employee with Team ID?{' '}
                 <button
                   type="button"
                   onClick={() => switchMode('team')}
                   className="auth-link-btn"
                 >
-                  Login with Team ID
+                  Team Access
                 </button>
               </>
             ) : mode === 'team' ? (
               <>
-                Have manager credentials?{' '}
+                Manager or Admin?{' '}
                 <button
                   type="button"
                   onClick={() => switchMode('login')}
                   className="auth-link-btn"
                 >
-                  Sign In
+                  Manager/Admin Sign In
                 </button>
               </>
             ) : (
               <>
-                Already have an account?{' '}
+                Already registered?{' '}
                 <button
                   type="button"
                   onClick={() => switchMode('login')}
                   className="auth-link-btn"
                 >
-                  Sign In
+                  Manager/Admin Sign In
                 </button>
               </>
             )}

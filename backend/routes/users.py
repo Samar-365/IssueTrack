@@ -3,6 +3,7 @@ User Management routes — CRUD operations for system users.
 Admin-only access for create, edit, and deactivate.
 Managers get read-only list access (needed for issue assignment).
 """
+import re
 from functools import wraps
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
@@ -127,37 +128,100 @@ def get_user(user_id):
 
 
 # --------------------------------------------------
-# POST /api/users — Create a new user (FR-4)
+# POST /api/users — Create a new user (Admin / Manager)
 # --------------------------------------------------
 @users_bp.route('', methods=['POST'])
-@admin_required
+@manager_or_admin_required
 def create_user():
-    """Create a new user. Admin only."""
-    data = request.get_json()
+    """Create a new user. Admins can create any user; Managers can add employees to their team."""
+    claims = get_jwt()
+    current_role = claims.get('role')
+    current_user_id = int(get_jwt_identity())
+    current_user = User.query.get(current_user_id)
+    user_team = (current_user.team_id if current_user else claims.get('team_id')) or ''
+
+    data = request.get_json() or {}
 
     # --- Validate required fields ---
     name = (data.get('name') or '').strip()
-    email = (data.get('email') or '').strip()
+    email = (data.get('email') or '').strip().lower()
     password = data.get('password', '')
     role = (data.get('role') or 'employee').strip().lower()
-    team_id = (data.get('team_id') or '').strip() or None
+    team_id = (data.get('team_id') or '').strip().upper() or None
 
     errors = []
     if not name:
         errors.append('Name is required')
     if not email:
         errors.append('Email is required')
-    if not password or len(password) < 6:
-        errors.append('Password must be at least 6 characters')
-    if role not in VALID_ROLES:
-        errors.append(f'Role must be one of: {", ".join(VALID_ROLES)}')
+    elif not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+        errors.append('Invalid email address format')
+
+    if current_role == 'manager':
+        if not user_team:
+            return jsonify({'error': 'You do not have a Team ID assigned. Contact an administrator.'}), 400
+        team_id = user_team.strip().upper()
+        role = 'employee'
+        if not password:
+            import secrets
+            password = f'team_pass_{secrets.token_hex(8)}'
+        elif len(password) < 6:
+            errors.append('Password must be at least 6 characters')
+    else:  # admin
+        if not password or len(password) < 6:
+            errors.append('Password must be at least 6 characters')
+        if role not in VALID_ROLES:
+            errors.append(f'Role must be one of: {", ".join(VALID_ROLES)}')
 
     if errors:
         return jsonify({'error': '; '.join(errors)}), 400
 
-    # --- Check duplicate email ---
-    if User.query.filter_by(email=email).first():
-        return jsonify({'error': 'A user with this email already exists'}), 409
+    if role == 'manager' and team_id:
+        existing_mgr = User.query.filter(
+            db.func.lower(User.team_id) == team_id.lower(),
+            User.role == 'manager',
+            User.is_active == True
+        ).first()
+        if existing_mgr:
+            return jsonify({
+                'error': f'Team ID "{team_id}" already has an active Project Manager ({existing_mgr.name}). Each team can only have one Project Manager.'
+            }), 409
+
+    # Check if email is in RemovedTeamMember blocklist for this team
+    if team_id:
+        from models.removed_member import RemovedTeamMember
+        removed = RemovedTeamMember.query.filter(
+            db.func.lower(RemovedTeamMember.team_id) == team_id.lower(),
+            db.func.lower(RemovedTeamMember.email) == email.lower()
+        ).first()
+        if removed:
+            return jsonify({'error': f'The email "{email}" was previously removed from Team "{team_id}" and cannot be added back.'}), 400
+
+    # --- Check existing user ---
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        if current_role == 'manager':
+            if existing_user.team_id and existing_user.team_id.strip().upper() == team_id:
+                return jsonify({'error': f'Employee "{email}" is already a member of your team.'}), 409
+            elif existing_user.team_id:
+                return jsonify({'error': f'User "{email}" is already assigned to a different team ("{existing_user.team_id}").'}), 409
+            else:
+                # User exists but was unassigned — link to manager's team
+                existing_user.team_id = team_id
+                existing_user.role = 'employee'
+                existing_user.is_active = True
+                if name:
+                    existing_user.name = name
+                _log_activity(current_user_id, 'user_added_to_team',
+                              f'Added employee "{existing_user.name}" ({email}) to team "{team_id}"',
+                              entity_id=existing_user.user_id)
+                db.session.commit()
+                return jsonify({
+                    'message': f'Employee "{existing_user.name}" added to Team {team_id} successfully',
+                    'user': existing_user.to_dict(),
+                }), 201
+        else:
+            return jsonify({'error': 'A user with this email already exists'}), 409
 
     # --- Create user ---
     user = User(
@@ -173,15 +237,14 @@ def create_user():
     db.session.flush()  # get user_id before commit
 
     # Log activity
-    admin_id = int(get_jwt_identity())
-    _log_activity(admin_id, 'user_created',
+    _log_activity(current_user_id, 'user_created',
                   f'Created user "{name}" ({email}) with role {role} (Team: {team_id or "General"})',
                   entity_id=user.user_id)
 
     db.session.commit()
 
     return jsonify({
-        'message': f'User "{name}" created successfully',
+        'message': f'Employee "{name}" added to Team {team_id} successfully' if current_role == 'manager' else f'User "{name}" created successfully',
         'user': user.to_dict(),
     }), 201
 
@@ -229,6 +292,19 @@ def update_user(user_id):
         if new_team != user.team_id:
             changes.append(f'team_id: "{user.team_id}" → "{new_team}"')
             user.team_id = new_team
+
+    # --- Verify single manager per team on update ---
+    if user.role == 'manager' and user.team_id:
+        existing_mgr = User.query.filter(
+            db.func.lower(User.team_id) == user.team_id.lower(),
+            User.role == 'manager',
+            User.user_id != user.user_id,
+            User.is_active == True
+        ).first()
+        if existing_mgr:
+            return jsonify({
+                'error': f'Team ID "{user.team_id}" already has an active Project Manager ({existing_mgr.name}). Each team can only have one Project Manager.'
+            }), 409
 
     # --- Password (optional) ---
     password = data.get('password', '')
@@ -298,7 +374,7 @@ def toggle_user_status(user_id):
 @users_bp.route('/<int:user_id>', methods=['DELETE'])
 @admin_required
 def delete_user(user_id):
-    """Permanently delete a user. Admin only."""
+    """Permanently delete a user. If deleting a project manager, cascades to delete their whole team."""
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -312,19 +388,73 @@ def delete_user(user_id):
     from models.comment import Comment
     from models.notification import Notification
 
+    user_name = user.name
+    user_email = user.email
+    user_role = user.role
+    user_team = user.team_id
+
+    # If the user is a Project Manager with a team, delete the entire team (employees & projects)
+    if user_role == 'manager' and user_team:
+        team_id_clean = user_team.strip()
+        # Find all users in this team (except deleting admin)
+        team_users = User.query.filter(
+            db.func.lower(User.team_id) == team_id_clean.lower(),
+            User.user_id != admin_id
+        ).all()
+        team_user_ids = [u.user_id for u in team_users]
+
+        # Find all projects belonging to this team or managed by these users
+        team_projects = Project.query.filter(
+            db.or_(
+                db.func.lower(Project.team_id) == team_id_clean.lower(),
+                Project.manager_id.in_(team_user_ids)
+            )
+        ).all()
+        team_project_ids = [p.project_id for p in team_projects]
+
+        # Clean issues, comments for these projects
+        if team_project_ids:
+            team_issues = Issue.query.filter(Issue.project_id.in_(team_project_ids)).all()
+            team_issue_ids = [i.issue_id for i in team_issues]
+            if team_issue_ids:
+                Comment.query.filter(Comment.issue_id.in_(team_issue_ids)).delete(synchronize_session=False)
+                ActivityLog.query.filter(ActivityLog.entity_type == 'issue', ActivityLog.entity_id.in_(team_issue_ids)).delete(synchronize_session=False)
+                Issue.query.filter(Issue.issue_id.in_(team_issue_ids)).delete(synchronize_session=False)
+
+        # Clean user notifications, comments, activity logs
+        if team_user_ids:
+            Notification.query.filter(Notification.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+            Comment.query.filter(Comment.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+            ActivityLog.query.filter(ActivityLog.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+
+        # Delete all team projects
+        for proj in team_projects:
+            db.session.delete(proj)
+
+        # Delete all team users
+        deleted_count = len(team_users)
+        for u in team_users:
+            db.session.delete(u)
+
+        _log_activity(admin_id, 'team_deleted',
+                      f'Deleted manager "{user_name}" and whole team "{team_id_clean}" ({deleted_count} members, {len(team_projects)} projects)',
+                      entity_id=user_id)
+        db.session.commit()
+
+        return jsonify({
+            'message': f'Manager "{user_name}" and whole team "{team_id_clean}" ({deleted_count} members, {len(team_projects)} projects) deleted successfully'
+        }), 200
+
+    # Single user deletion (e.g. employee or admin)
     # Reassign created_by to the deleting admin so projects/issues aren't orphaned
     Project.query.filter_by(created_by=user_id).update({'created_by': admin_id})
     Project.query.filter_by(manager_id=user_id).update({'manager_id': None})
     Issue.query.filter_by(created_by=user_id).update({'created_by': admin_id})
     Issue.query.filter_by(assigned_to=user_id).update({'assigned_to': None})
 
-    # Clean up notifications and comments for this user
     Notification.query.filter_by(user_id=user_id).delete()
     Comment.query.filter_by(user_id=user_id).delete()
     ActivityLog.query.filter_by(user_id=user_id).delete()
-
-    user_name = user.name
-    user_email = user.email
 
     db.session.delete(user)
     _log_activity(admin_id, 'user_deleted',
@@ -333,6 +463,72 @@ def delete_user(user_id):
     db.session.commit()
 
     return jsonify({'message': f'User "{user_name}" deleted successfully'}), 200
+
+
+# --------------------------------------------------
+# DELETE /api/users/team/<team_id> — Delete whole team directly
+# --------------------------------------------------
+@users_bp.route('/team/<string:team_id>', methods=['DELETE'])
+@admin_required
+def delete_team(team_id):
+    """Permanently delete an entire team (all employees, managers, projects, issues). Admin only."""
+    team_id_clean = team_id.strip()
+    if not team_id_clean:
+        return jsonify({'error': 'Team ID is required'}), 400
+
+    admin_id = int(get_jwt_identity())
+
+    from models.issue import Issue
+    from models.project import Project
+    from models.comment import Comment
+    from models.notification import Notification
+
+    team_users = User.query.filter(
+        db.func.lower(User.team_id) == team_id_clean.lower(),
+        User.user_id != admin_id
+    ).all()
+
+    if not team_users:
+        return jsonify({'error': f'No team found with ID "{team_id_clean}"'}), 404
+
+    team_user_ids = [u.user_id for u in team_users]
+
+    team_projects = Project.query.filter(
+        db.or_(
+            db.func.lower(Project.team_id) == team_id_clean.lower(),
+            Project.manager_id.in_(team_user_ids)
+        )
+    ).all()
+    team_project_ids = [p.project_id for p in team_projects]
+
+    if team_project_ids:
+        team_issues = Issue.query.filter(Issue.project_id.in_(team_project_ids)).all()
+        team_issue_ids = [i.issue_id for i in team_issues]
+        if team_issue_ids:
+            Comment.query.filter(Comment.issue_id.in_(team_issue_ids)).delete(synchronize_session=False)
+            ActivityLog.query.filter(ActivityLog.entity_type == 'issue', ActivityLog.entity_id.in_(team_issue_ids)).delete(synchronize_session=False)
+            Issue.query.filter(Issue.issue_id.in_(team_issue_ids)).delete(synchronize_session=False)
+
+    if team_user_ids:
+        Notification.query.filter(Notification.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+        Comment.query.filter(Comment.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+        ActivityLog.query.filter(ActivityLog.user_id.in_(team_user_ids)).delete(synchronize_session=False)
+
+    for proj in team_projects:
+        db.session.delete(proj)
+
+    deleted_count = len(team_users)
+    for u in team_users:
+        db.session.delete(u)
+
+    _log_activity(admin_id, 'team_deleted',
+                  f'Deleted whole team "{team_id_clean}" ({deleted_count} members, {len(team_projects)} projects)',
+                  entity_id=None)
+    db.session.commit()
+
+    return jsonify({
+        'message': f'Team "{team_id_clean}" and all {deleted_count} member(s) deleted successfully'
+    }), 200
 
 
 # --------------------------------------------------
@@ -363,6 +559,22 @@ def remove_user_from_team(user_id):
 
     old_team = target_user.team_id
     target_user.team_id = None
+
+    # Track in RemovedTeamMember so this email cannot rejoin this team via Team ID or Register
+    from models.removed_member import RemovedTeamMember
+    if old_team and target_user.email:
+        existing_rec = RemovedTeamMember.query.filter(
+            db.func.lower(RemovedTeamMember.team_id) == old_team.strip().lower(),
+            db.func.lower(RemovedTeamMember.email) == target_user.email.strip().lower()
+        ).first()
+        if not existing_rec:
+            removal_rec = RemovedTeamMember(
+                team_id=old_team.strip().upper(),
+                email=target_user.email.strip().lower(),
+                user_id=target_user.user_id,
+                removed_by=manager_id
+            )
+            db.session.add(removal_rec)
 
     # Unassign issues in manager's team projects
     from models.issue import Issue

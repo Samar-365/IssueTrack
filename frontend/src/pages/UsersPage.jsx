@@ -98,7 +98,12 @@ function UsersPage() {
   }
 
   const handleDeleteUser = async (user) => {
-    if (window.confirm(`Are you sure you want to permanently delete user "${user.name}" (${user.email})? This action cannot be undone.`)) {
+    const isManagerWithTeam = user.role === 'manager' && user.team_id
+    const confirmMsg = isManagerWithTeam
+      ? `⚠️ WARNING: "${user.name}" is a Project Manager for Team "${user.team_id}". Deleting this manager will permanently delete the WHOLE TEAM (all team employees, projects, and issues). Are you sure you want to proceed?`
+      : `Are you sure you want to permanently delete user "${user.name}" (${user.email})? This action cannot be undone.`
+
+    if (window.confirm(confirmMsg)) {
       try {
         const res = await usersAPI.delete(user.user_id)
         addToast(res.data?.message || `User "${user.name}" deleted successfully`, 'success')
@@ -156,10 +161,10 @@ function UsersPage() {
               : `View your teammates and project manager in Team ${currentUser?.team_id || ''}`}
           </p>
         </div>
-        {isAdmin && (
+        {(isAdmin || isManager) && (
           <button className="btn btn-primary btn-lg" onClick={() => setModalMode('create')}>
             <HiOutlineUserAdd />
-            Add User
+            {isAdmin ? 'Add User' : 'Add Employee'}
           </button>
         )}
       </div>
@@ -409,6 +414,7 @@ function UsersPage() {
       {modalMode === 'create' && (
         <UserFormModal
           mode="create"
+          currentUser={currentUser}
           onClose={() => setModalMode(null)}
           onSubmit={handleCreateUser}
         />
@@ -417,6 +423,7 @@ function UsersPage() {
         <UserFormModal
           mode="edit"
           user={editingUser}
+          currentUser={currentUser}
           onClose={() => { setModalMode(null); setEditingUser(null) }}
           onSubmit={handleEditUser}
         />

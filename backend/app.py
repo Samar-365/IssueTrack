@@ -33,6 +33,7 @@ def create_app(config_name=None):
         from models.activity_log import ActivityLog
         from models.notification import Notification
         from models.github_event import GitHubEvent
+        from models.removed_member import RemovedTeamMember
         db.create_all()
 
     # Register blueprints (routes) — added module by module

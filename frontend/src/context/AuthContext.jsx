@@ -61,9 +61,9 @@ export function AuthProvider({ children }) {
     return userData
   }, [])
 
-  // ---- Team Login (Employee direct access via Team ID) ----
-  const teamLogin = useCallback(async (team_id, name = '') => {
-    const res = await authAPI.teamLogin({ team_id, name })
+  // ---- Team Login (Employee direct access via Team ID, Name, Email) ----
+  const teamLogin = useCallback(async (team_id, name = '', email = '') => {
+    const res = await authAPI.teamLogin({ team_id, name, email })
     const { access_token, user: userData } = res.data
     localStorage.setItem('access_token', access_token)
     localStorage.setItem('user', JSON.stringify(userData))
