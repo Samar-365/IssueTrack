@@ -70,7 +70,32 @@ def register():
     if existing_user and (existing_user.role != 'employee' or (existing_user.team_id and existing_user.team_id.strip().upper() != team_id.strip().upper())):
         return jsonify({'error': 'An account with this email already exists'}), 409
 
-    if role == 'employee' and team_id:
+    if role == 'manager':
+        # Check if an active Project Manager already exists for this team_id
+        existing_manager = User.query.filter(
+            db.func.lower(User.team_id) == team_id.lower(),
+            User.role == 'manager',
+            User.is_active == True
+        ).first()
+        if existing_manager:
+            return jsonify({
+                'error': f'Team ID "{team_id}" already has an active Project Manager ({existing_manager.name}). Each team can only have one Project Manager. Please register with a different unique Team ID.'
+            }), 409
+
+        if existing_user:
+            return jsonify({'error': 'An account with this email already exists'}), 409
+
+        user = User(
+            name=name,
+            email=email,
+            role=role,
+            team_id=team_id,
+            is_active=True
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+    elif role == 'employee' and team_id:
         # Check if this employee email has been manually added to this team by the Project Manager
         if not existing_user or not existing_user.team_id or existing_user.team_id.strip().upper() != team_id.strip().upper():
             return jsonify({
@@ -89,7 +114,7 @@ def register():
         db.session.commit()
         user = existing_user
     else:
-        # Manager registration (creates team) or admin
+        # Admin or other role
         if existing_user:
             return jsonify({'error': 'An account with this email already exists'}), 409
 

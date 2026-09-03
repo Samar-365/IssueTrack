@@ -176,6 +176,17 @@ def create_user():
     if errors:
         return jsonify({'error': '; '.join(errors)}), 400
 
+    if role == 'manager' and team_id:
+        existing_mgr = User.query.filter(
+            db.func.lower(User.team_id) == team_id.lower(),
+            User.role == 'manager',
+            User.is_active == True
+        ).first()
+        if existing_mgr:
+            return jsonify({
+                'error': f'Team ID "{team_id}" already has an active Project Manager ({existing_mgr.name}). Each team can only have one Project Manager.'
+            }), 409
+
     # Check if email is in RemovedTeamMember blocklist for this team
     if team_id:
         from models.removed_member import RemovedTeamMember
@@ -281,6 +292,19 @@ def update_user(user_id):
         if new_team != user.team_id:
             changes.append(f'team_id: "{user.team_id}" → "{new_team}"')
             user.team_id = new_team
+
+    # --- Verify single manager per team on update ---
+    if user.role == 'manager' and user.team_id:
+        existing_mgr = User.query.filter(
+            db.func.lower(User.team_id) == user.team_id.lower(),
+            User.role == 'manager',
+            User.user_id != user.user_id,
+            User.is_active == True
+        ).first()
+        if existing_mgr:
+            return jsonify({
+                'error': f'Team ID "{user.team_id}" already has an active Project Manager ({existing_mgr.name}). Each team can only have one Project Manager.'
+            }), 409
 
     # --- Password (optional) ---
     password = data.get('password', '')

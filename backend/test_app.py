@@ -94,6 +94,19 @@ class IssueTrackerTestCase(unittest.TestCase):
         data = json.loads(res.data)
         self.assertIn('Team ID is required', data['error'])
 
+    def test_cannot_register_second_manager_for_same_team(self):
+        # Manager for TEAM-ALPHA already exists (self.manager_user)
+        res = self.client.post('/api/auth/register', json={
+            'name': 'Second Manager',
+            'email': 'second_mgr@test.com',
+            'password': 'Password123',
+            'role': 'manager',
+            'team_id': 'TEAM-ALPHA'
+        })
+        self.assertEqual(res.status_code, 409)
+        data = json.loads(res.data)
+        self.assertIn('already has an active Project Manager', data['error'])
+
     def test_auth_register_duplicate_email(self):
         res = self.client.post('/api/auth/register', json={
             'name': 'Duplicate User',
