@@ -21,11 +21,12 @@ def create_app(config_name=None):
     allowed_origins = [
         'http://localhost:5173',     # Vite dev server
         'http://127.0.0.1:5173',
+        r'https://.*\.vercel\.app',  # All Vercel deployments (preview & production)
+        r'https://.*\.onrender\.com', # Render domain
     ]
     frontend_url = app.config.get('FRONTEND_URL') or os.environ.get('FRONTEND_URL', '')
-    if frontend_url:
+    if frontend_url and frontend_url not in allowed_origins:
         allowed_origins.append(frontend_url)
-        # Also allow with/without trailing slash
         allowed_origins.append(frontend_url.rstrip('/'))
 
     CORS(app, resources={r"/api/*": {"origins": allowed_origins}}, supports_credentials=True)
