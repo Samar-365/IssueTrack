@@ -196,7 +196,7 @@ def main():
     else:
         print("HMAC Signature: [None configured; testing in development mode]")
 
-    req = urllib.request.Request(args.url, data=payload_bytes, headers=headers, method='POST')
+    req = urllib.request.Request(target_url, data=payload_bytes, headers=headers, method='POST')
 
     print(f"\nSending payload ({len(payload_bytes)} bytes)...")
     try:
