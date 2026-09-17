@@ -530,9 +530,22 @@ export default function IssuesPage() {
                     {/* Title + Project */}
                     <td>
                       <div className="issue-title-cell">
-                        <span className="issue-title-text" title={issue.title}>
-                          {issue.title}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="issue-id-badge" style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: 'var(--color-bg-secondary, #27272a)',
+                            color: 'var(--color-text-secondary, #a1a1aa)',
+                            fontFamily: 'monospace'
+                          }}>
+                            #{issue.issue_id}
+                          </span>
+                          <span className="issue-title-text" title={issue.title}>
+                            {issue.title}
+                          </span>
+                        </div>
                         <span className="issue-project-tag">
                           <HiOutlineFolder style={{ fontSize: '0.7rem' }} />
                           {issue.project_name || `Project #${issue.project_id}`}

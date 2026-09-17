@@ -150,7 +150,20 @@ export default function KanbanBoard({
                       </div>
 
                       {/* Title */}
-                      <h4 className="kanban-card-title">{issue.title}</h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '4px 0 8px 0' }}>
+                        <span style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          backgroundColor: 'var(--color-bg-secondary, #27272a)',
+                          color: 'var(--color-text-secondary, #a1a1aa)',
+                          fontFamily: 'monospace'
+                        }}>
+                          #{issue.issue_id}
+                        </span>
+                        <h4 className="kanban-card-title" style={{ margin: 0 }}>{issue.title}</h4>
+                      </div>
 
                       {/* Due Date Indicator */}
                       {issue.due_date && (
