@@ -16,7 +16,19 @@ def create_app(config_name=None):
 
     # Initialize extensions
     db.init_app(app)
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+    # Build allowed CORS origins
+    allowed_origins = [
+        'http://localhost:5173',     # Vite dev server
+        'http://127.0.0.1:5173',
+    ]
+    frontend_url = app.config.get('FRONTEND_URL') or os.environ.get('FRONTEND_URL', '')
+    if frontend_url:
+        allowed_origins.append(frontend_url)
+        # Also allow with/without trailing slash
+        allowed_origins.append(frontend_url.rstrip('/'))
+
+    CORS(app, resources={r"/api/*": {"origins": allowed_origins}}, supports_credentials=True)
     jwt = JWTManager(app)
 
     # ---- JWT token revocation check (for logout) ----
@@ -61,6 +73,7 @@ def create_app(config_name=None):
     app.register_blueprint(webhooks_bp, url_prefix='/api/webhooks')
 
 
+    @app.route('/health')
     @app.route('/api/health')
     def health_check():
         return {'status': 'ok', 'message': 'Issue Tracker API is running'}

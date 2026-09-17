@@ -28,12 +28,22 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    """Production configuration — use MySQL."""
+    """Production configuration — uses PostgreSQL (Render)."""
     DEBUG = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        'DATABASE_URL',
-        'mysql+pymysql://root:password@localhost/issue_tracker'
-    )
+
+    @staticmethod
+    def _fix_database_url(url):
+        """Render exports DATABASE_URL with 'postgres://' but SQLAlchemy 2.x
+        requires 'postgresql://'. Rewrite automatically."""
+        if url and url.startswith('postgres://'):
+            url = url.replace('postgres://', 'postgresql://', 1)
+        return url
+
+    SQLALCHEMY_DATABASE_URI = _fix_database_url(
+        os.environ.get('DATABASE_URL', '')
+    ) or 'postgresql+psycopg2://localhost/issue_tracker'
+
+    FRONTEND_URL = os.environ.get('FRONTEND_URL', '')
 
 
 class TestingConfig(Config):

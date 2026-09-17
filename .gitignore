@@ -9,6 +9,8 @@ build/
 venv/
 env/
 .env
+.env.production
+.env.local
 
 # Database
 *.db

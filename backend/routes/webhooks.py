@@ -26,7 +26,7 @@ def _handle_webhook_payload(project=None):
     Verifies HMAC-SHA256 signature and applies workflow transitions.
     If project is provided, issue lookups are strictly scoped to project.project_id.
     """
-    raw_payload = request.get_data()
+    raw_payload = request.get_data(cache=True) or b''
     signature_header = request.headers.get('X-Hub-Signature-256') or request.headers.get('X-Hub-Signature')
 
     # Determine HMAC secret
@@ -41,7 +41,14 @@ def _handle_webhook_payload(project=None):
         return jsonify({'error': 'Unauthorized', 'reason': reason}), 401
 
     # 2. Parse JSON payload
-    payload = request.get_json(silent=True)
+    import json
+    try:
+        payload = request.get_json(silent=True)
+        if not payload and raw_payload:
+            payload = json.loads(raw_payload.decode('utf-8'))
+    except Exception:
+        payload = None
+
     if not payload:
         return jsonify({'error': 'Invalid or empty JSON payload'}), 400
 
