@@ -4,6 +4,13 @@ A full-stack Issue & Project Management web application built with a **Flask RES
 
 ---
 
+## Live Demo
+
+- Live app: https://issue-track-six.vercel.app
+- Demo video: https://youtu.be/R_w4sj0m4Ts
+
+---
+
 ## Table of Contents
 - [Features](#features)
 - [Tech Stack](#tech-stack)
