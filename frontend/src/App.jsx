@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
+import LandingPage from './pages/LandingPage'
 import UsersPage from './pages/UsersPage'
 import IssuesPage from './pages/IssuesPage'
 import ProjectsPage from './pages/ProjectsPage'
@@ -197,7 +198,7 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<Navigate to="/login?mode=register" replace />} />
           <Route
