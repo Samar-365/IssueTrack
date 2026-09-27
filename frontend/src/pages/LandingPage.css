@@ -1,0 +1,36 @@
+/* ============================================
+   Landing Page — Full Viewport with ShapeWaves
+   ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+.landing-page {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #000000;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+/* --- ShapeWaves WebGPU Background Layer --- */
+.landing-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+/* --- Subtle Vignette / Edge Shadow for Contrast --- */
+.landing-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(circle at center, transparent 35%, rgba(0, 0, 0, 0.45) 80%, rgba(0, 0, 0, 0.9) 100%);
+}
