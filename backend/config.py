@@ -33,10 +33,13 @@ class ProductionConfig(Config):
 
     @staticmethod
     def _fix_database_url(url):
-        """Render exports DATABASE_URL with 'postgres://' but SQLAlchemy 2.x
-        requires 'postgresql://'. Rewrite automatically."""
-        if url and url.startswith('postgres://'):
-            url = url.replace('postgres://', 'postgresql://', 1)
+        """Ensure DATABASE_URL uses the installed psycopg2 driver (postgresql+psycopg2://)."""
+        if not url:
+            return url
+        if url.startswith('postgres://'):
+            return url.replace('postgres://', 'postgresql+psycopg2://', 1)
+        if url.startswith('postgresql://') and not url.startswith('postgresql+'):
+            return url.replace('postgresql://', 'postgresql+psycopg2://', 1)
         return url
 
     SQLALCHEMY_DATABASE_URI = _fix_database_url(
